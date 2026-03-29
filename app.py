@@ -15,11 +15,9 @@ div[data-testid="metric-container"] {
     padding: 15px;
     border-radius: 10px;
 }
-
 div[data-testid="metric-container"] label {
     color: #60a5fa;
 }
-
 div[data-testid="metric-container"] div {
     color: #3b82f6;
 }
@@ -61,7 +59,7 @@ df.rename(columns={
 }, inplace=True)
 
 # -------------------------
-# VALID PRODUCTS (FIXED)
+# PRODUCTS
 # -------------------------
 valid_products = [
     "DIESEL EKONOMY",
@@ -73,7 +71,7 @@ valid_products = [
 df = df[df["Име на артикул"].isin(valid_products)]
 
 # -------------------------
-# SIDEBAR FILTERS
+# SIDEBAR
 # -------------------------
 st.sidebar.header("Filters")
 
@@ -89,7 +87,7 @@ start_date = st.sidebar.date_input("Start date", df["Дата"].min())
 end_date = st.sidebar.date_input("End date", df["Дата"].max())
 
 # -------------------------
-# FILTER DATA
+# FILTER
 # -------------------------
 filtered = df[
     (df["company"] == company) &
@@ -104,66 +102,62 @@ filtered = df[
 st.title("Fuel Analytics Dashboard")
 
 # -------------------------
-# KPI SECTION (FINAL)
+# KPI
 # -------------------------
 total_liters = filtered["Литри"].sum()
-
 gta_total = filtered["gta_sum"].sum()
 eko_total = filtered["eko_sum"].sum()
-
 difference = gta_total - eko_total
 
 avg_gta_price = filtered["gta_price"].mean()
 avg_eko_price = filtered["eko_price"].mean()
 
-# layout
 k1, k2, k3, k4, k5, k6 = st.columns(6)
 
 k1.metric("Total Liters", int(total_liters))
 k2.metric("Avg GTA Price", round(avg_gta_price, 3))
 k3.metric("Avg EKO Price", round(avg_eko_price, 3))
-
 k4.metric("Total GTA (€)", round(gta_total, 2))
 k5.metric("Total EKO (€)", round(eko_total, 2))
-
-# цветна логика за разлика
-k6.metric(
-    "Difference (€)",
-    round(difference, 2),
-    delta=round(difference, 2)
-)
+k6.metric("Difference (€)", round(difference, 2), delta=round(difference, 2))
 
 # -------------------------
-# SECOND ROW KPIs
-# -------------------------
-k6, k7 = st.columns(2)
-
-k6.metric("Avg GTA Price", round(avg_gta_price, 3))
-k7.metric("Avg EKO Price", round(avg_eko_price, 3))
-
-# -------------------------
-# PLOT FUNCTION
+# PLOT FUNCTION (FIXED)
 # -------------------------
 def plot_chart(data, title):
     if data.empty:
         st.warning(f"No data for {title}")
         return
 
-    fig, ax = plt.subplots(figsize=(6, 3))
+    # агрегиране по дата
+    grouped = data.groupby("Дата")["Литри"].sum().reset_index()
 
-    mean_value = data["Литри"].mean()
+    # rolling average (trend)
+    grouped["rolling"] = grouped["Литри"].rolling(3).mean()
 
-    ax.bar(data["Дата"], data["Литри"])
-    ax.axhline(mean_value, color="red", linestyle="--")
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    # основна линия
+    ax.plot(grouped["Дата"], grouped["Литри"], marker="o", linewidth=2, label="Daily")
+
+    # средна линия
+    ax.axhline(grouped["Литри"].mean(), color="red", linestyle="--", label="Average")
+
+    # формат дата
+    ax.set_xticks(grouped["Дата"][::max(1, len(grouped)//8)])
+    ax.set_xticklabels(
+        grouped["Дата"][::max(1, len(grouped)//8)].dt.strftime("%d-%m"),
+        rotation=90
+    )
 
     ax.set_title(title)
     ax.set_ylabel("Liters")
-    ax.tick_params(axis='x', rotation=90)
+    ax.legend()
 
     st.pyplot(fig)
 
 # -------------------------
-# GRID LAYOUT (2x2)
+# GRID
 # -------------------------
 c1, c2 = st.columns(2)
 
