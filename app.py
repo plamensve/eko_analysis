@@ -99,7 +99,7 @@ filtered = df[
 # -------------------------
 # HEADER
 # -------------------------
-st.title("Fuel Analytics Dashboard")
+st.title(f"{company}")
 
 # -------------------------
 # KPI
@@ -114,7 +114,7 @@ avg_eko_price = filtered["eko_price"].mean()
 
 k1, k2, k3, k4, k5, k6 = st.columns(6)
 
-k1.metric("Total Liters", int(total_liters))
+k1.metric("Total Liters", round(float(total_liters), 3))
 k2.metric("Avg GTA Price", round(avg_gta_price, 3))
 k3.metric("Avg EKO Price", round(avg_eko_price, 3))
 k4.metric("Total GTA (€)", round(gta_total, 2))
@@ -129,31 +129,72 @@ def plot_chart(data, title):
         st.warning(f"No data for {title}")
         return
 
-    # агрегиране по дата
     grouped = data.groupby("Дата")["Литри"].sum().reset_index()
 
-    # rolling average (trend)
-    grouped["rolling"] = grouped["Литри"].rolling(3).mean()
+    fig, ax = plt.subplots(figsize=(14, 8))  # по-голяма диаграма
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    # фон
+    fig.patch.set_facecolor("#0f172a")
+    ax.set_facecolor("#0f172a")
 
     # основна линия
-    ax.plot(grouped["Дата"], grouped["Литри"], marker="o", linewidth=2, label="Daily")
-
-    # средна линия
-    ax.axhline(grouped["Литри"].mean(), color="red", linestyle="--", label="Average")
-
-    # формат дата
-    ax.set_xticks(grouped["Дата"][::max(1, len(grouped)//8)])
-    ax.set_xticklabels(
-        grouped["Дата"][::max(1, len(grouped)//8)].dt.strftime("%d-%m"),
-        rotation=90
+    ax.plot(
+        grouped["Дата"],
+        grouped["Литри"],
+        linewidth=3,
+        marker="o",
+        markersize=6,
+        color="#3b82f6",
+        label="Daily"
     )
 
-    ax.set_title(title)
-    ax.set_ylabel("Liters")
-    ax.legend()
+    # fill
+    ax.fill_between(
+        grouped["Дата"],
+        grouped["Литри"],
+        alpha=0.15,
+        color="#3b82f6"
+    )
 
+    # average линия
+    ax.axhline(
+        grouped["Литри"].mean(),
+        color="#ef4444",
+        linestyle="--",
+        linewidth=1.5,
+        label="Average"
+    )
+
+    # grid
+    ax.grid(True, linestyle="--", alpha=0.2)
+
+    # по-добро управление на датите
+    step = max(1, len(grouped) // 10)
+
+    ax.set_xticks(grouped["Дата"][::step])
+    ax.set_xticklabels(
+        grouped["Дата"][::step].dt.strftime("%d %b"),  # по-четимо (01 Mar)
+        rotation=90,
+        ha="center",
+        color="white"
+    )
+
+    # стил
+    ax.set_title(title, color="white", fontsize=16, pad=15)
+    ax.set_ylabel("Liters", color="white")
+
+    ax.tick_params(axis='y', colors='white')
+
+    # махаме рамки
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    # легенда
+    legend = ax.legend(facecolor="#1e293b", edgecolor="none")
+    for text in legend.get_texts():
+        text.set_color("white")
+
+    plt.tight_layout()
     st.pyplot(fig)
 
 # -------------------------
