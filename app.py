@@ -427,9 +427,6 @@ with tab3:
             <div style="color:white;font-size:18px;font-weight:700;">
                 {top_employee}
             </div>
-            <div style="color:#3b82f6;font-size:16px;">
-                {round(top_value,1)} L
-            </div>
         </div>
         """, unsafe_allow_html=True)
 
