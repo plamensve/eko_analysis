@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 st.set_page_config(layout="wide")
 
 # -------------------------
-# STYLE (BLUE KPI)
+# STYLE
 # -------------------------
 st.markdown("""
 <style>
@@ -21,6 +21,13 @@ div[data-testid="metric-container"] label {
 div[data-testid="metric-container"] div {
     color: #3b82f6;
 }
+
+/* SELECTBOX + DATE POINTER */
+div[data-baseweb="select"],
+div[data-baseweb="select"] *,
+input[type="date"] {
+    cursor: pointer !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -35,7 +42,7 @@ df = pd.read_csv("combined.csv", dtype={"Номер на карта": str})
 df.columns = df.columns.str.strip()
 df["Дата"] = pd.to_datetime(df["Дата"])
 df["Име на артикул"] = df["Име на артикул"].str.strip().str.upper()
-
+df["Литри"] = pd.to_numeric(df["Литри"], errors="coerce")
 
 # -------------------------
 # SAFE COLUMN MAPPING
@@ -47,17 +54,11 @@ def get_col(possible_names):
                 return col
     return None
 
-
-gta_sum_col = get_col(["Сума по GTA цена"])
-eko_sum_col = get_col(["Сума по Еко цена", "Сума по ЕКО цена"])
-gta_price_col = get_col(["GTA цена"])
-eko_price_col = get_col(["Еко цена", "ЕКО цена"])
-
 df.rename(columns={
-    gta_sum_col: "gta_sum",
-    eko_sum_col: "eko_sum",
-    gta_price_col: "gta_price",
-    eko_price_col: "eko_price"
+    get_col(["Сума по GTA цена"]): "gta_sum",
+    get_col(["Сума по Еко цена", "Сума по ЕКО цена"]): "eko_sum",
+    get_col(["GTA цена"]): "gta_price",
+    get_col(["Еко цена", "ЕКО цена"]): "eko_price"
 }, inplace=True)
 
 # -------------------------
@@ -73,297 +74,7 @@ valid_products = [
 df = df[df["Име на артикул"].isin(valid_products)]
 
 # -------------------------
-# SIDEBAR
-# -------------------------
-st.sidebar.header("Filters")
-
-company = st.sidebar.selectbox("Company", df["company"].unique())
-
-products = []
-
-st.sidebar.markdown("### Products")
-
-for p in valid_products:
-    if st.sidebar.checkbox(p, value=True):
-        products.append(p)
-
-start_date = st.sidebar.date_input("Start date", df["Дата"].min())
-end_date = st.sidebar.date_input("End date", df["Дата"].max())
-
-# -------------------------
-# FILTER
-# -------------------------
-filtered = df[
-    (df["company"] == company) &
-    (df["Име на артикул"].isin(products)) &
-    (df["Дата"] >= pd.to_datetime(start_date)) &
-    (df["Дата"] <= pd.to_datetime(end_date))
-    ]
-
-# -------------------------
-# HEADER
-# -------------------------
-st.title(f"{company}")
-
-# -------------------------
-# KPI
-# -------------------------
-total_liters = filtered["Литри"].sum()
-gta_total = filtered["gta_sum"].sum()
-eko_total = filtered["eko_sum"].sum()
-difference = gta_total - eko_total
-
-avg_gta_price = filtered["gta_price"].mean()
-avg_eko_price = filtered["eko_price"].mean()
-
-k1, k2, k3, k4, k5, k6 = st.columns(6)
-
-k1.metric("Total Liters", round(float(total_liters), 3))
-k2.metric("Avg GTA Price", round(avg_gta_price, 3))
-k3.metric("Avg EKO Price", round(avg_eko_price, 3))
-k4.metric("Total GTA (€)", round(gta_total, 2))
-k5.metric("Total EKO (€)", round(eko_total, 2))
-k6.metric("Difference (€)", round(difference, 2), delta=round(difference, 2))
-
-
-# -------------------------
-# PLOT FUNCTION (FIXED)
-# -------------------------
-def plot_chart(data, title):
-    if data.empty:
-        st.warning(f"No data for {title}")
-        return
-
-    grouped = data.groupby("Дата")["Литри"].sum().reset_index()
-
-    fig, ax = plt.subplots(figsize=(14, 8))  # по-голяма диаграма
-
-    # фон
-    fig.patch.set_facecolor("#0f172a")
-    ax.set_facecolor("#0f172a")
-
-    # основна линия
-    ax.plot(
-        grouped["Дата"],
-        grouped["Литри"],
-        linewidth=3,
-        marker="o",
-        markersize=6,
-        color="#3b82f6",
-        label="Daily"
-    )
-
-    # fill
-    ax.fill_between(
-        grouped["Дата"],
-        grouped["Литри"],
-        alpha=0.15,
-        color="#3b82f6"
-    )
-
-    # average линия
-    ax.axhline(
-        grouped["Литри"].mean(),
-        color="#ef4444",
-        linestyle="--",
-        linewidth=1.5,
-        label="Average"
-    )
-
-    # grid
-    ax.grid(True, linestyle="--", alpha=0.2)
-
-    # по-добро управление на датите
-    step = max(1, len(grouped) // 10)
-
-    ax.set_xticks(grouped["Дата"][::step])
-    ax.set_xticklabels(
-        grouped["Дата"][::step].dt.strftime("%d %b"),  # по-четимо (01 Mar)
-        rotation=90,
-        ha="center",
-        color="white"
-    )
-
-    # стил
-    ax.set_title(title, color="white", fontsize=16, pad=15)
-    ax.set_ylabel("Liters", color="white")
-
-    ax.tick_params(axis='y', colors='white')
-
-    # махаме рамки
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-
-    # легенда
-    legend = ax.legend(facecolor="#1e293b", edgecolor="none")
-    for text in legend.get_texts():
-        text.set_color("white")
-
-    plt.tight_layout()
-    st.pyplot(fig)
-
-
-# -------------------------
-# GRID
-# -------------------------
-c1, c2 = st.columns(2)
-
-with c1:
-    plot_chart(
-        filtered[filtered["Име на артикул"] == "DIESEL EKONOMY"],
-        "DIESEL EKONOMY"
-    )
-
-    plot_chart(
-        filtered[filtered["Име на артикул"] == "DIESEL DOUBLE FILTERED"],
-        "DIESEL DOUBLE FILTERED"
-    )
-
-with c2:
-    plot_chart(
-        filtered[filtered["Име на артикул"] == "95 EKONOMY UNLEADED"],
-        "95 EKONOMY UNLEADED"
-    )
-
-    plot_chart(
-        filtered[filtered["Име на артикул"] == "EKO RACING 100"],
-        "EKO RACING 100"
-    )
-
-# -------------------------
-# TABLE
-# -------------------------
-st.subheader("Transactions")
-
-st.dataframe(
-    filtered.sort_values("Дата", ascending=False),
-    use_container_width=True
-)
-
-# -------------------------
-# PRODUCT COMPARISON
-# -------------------------
-st.subheader("Product Consumption by Company")
-
-st.markdown("### Select product")
-
-# init
-if "selected_product" not in st.session_state:
-    st.session_state.selected_product = valid_products[0]
-
-
-# callback
-def select_product(p):
-    st.session_state.selected_product = p
-
-
-# layout
-cols = st.columns(len(valid_products))
-
-for i, p in enumerate(valid_products):
-    is_active = st.session_state.selected_product == p
-
-    cols[i].button(
-        p,
-        key=f"btn_{p}",
-        on_click=select_product,
-        args=(p,),
-        type="primary" if is_active else "secondary"
-    )
-
-selected_product = st.session_state.selected_product
-
-# филтър + агрегация
-product_stats = df[
-    (df["Име на артикул"] == selected_product) &
-    (df["Дата"] >= pd.to_datetime(start_date)) &
-    (df["Дата"] <= pd.to_datetime(end_date))
-    ].groupby("company")["Литри"].sum().reset_index()
-
-# сортиране
-product_stats = product_stats.sort_values(
-    "Литри",
-    ascending=False
-)
-
-# KPI лидер
-if not product_stats.empty:
-    top = product_stats.iloc[0]
-
-    st.metric(
-        f"Top consumer - {selected_product}",
-        top["company"],
-        f"{round(top['Литри'], 2)} L"
-    )
-
-# таблица
-st.dataframe(product_stats, use_container_width=True)
-
-# -------------------------
-# BAR CHART (visual comparison)
-# -------------------------
-if not product_stats.empty:
-
-    fig, ax = plt.subplots(figsize=(15, 10))
-
-    fig.patch.set_facecolor("#0f172a")
-    ax.set_facecolor("#0f172a")
-
-    product_stats = product_stats.sort_values(
-        "Литри",
-        ascending=False
-    )
-
-    bars = ax.barh(
-        product_stats["company"],
-        product_stats["Литри"],
-        color="#3b82f6",
-    )
-
-    ax.invert_yaxis()
-
-    # -------------------------
-    # VALUE LABELS
-    # -------------------------
-    max_val = product_stats["Литри"].max()
-
-    for i, v in enumerate(product_stats["Литри"]):
-        ax.text(
-            v + max_val * 0.01,
-            i,
-            f"{v:.2f}",
-            va='center',
-            ha='left',
-            color='white',
-            fontsize=10
-        )
-
-    # -------------------------
-    # STYLE
-    # -------------------------
-    ax.set_title(
-        selected_product,
-        color="white",
-        fontsize=16,
-        y=1.05  # изнася заглавието нагоре
-    )
-
-    ax.set_xlabel("Liters", color="white")
-    ax.set_ylabel("Company", color="white")
-
-    ax.tick_params(axis='x', colors="white")
-    ax.tick_params(axis='y', colors="white")
-
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-
-    ax.grid(True, linestyle="--", alpha=0.2)
-
-    st.pyplot(fig)
-
-
-# -------------------------
-# CARD MAP
+# EMPLOYEE MAP
 # -------------------------
 card_map = {
     "78970110027720035": "ДИМИТЪР НЕСТОРОВ",
@@ -383,143 +94,383 @@ card_map = {
     "78970110027720100": "ГЕОРГИ КАЛЧЕВ"
 }
 
-# -------------------------
-# CREATE EMPLOYEE COLUMN (ВАЖНО)
-# -------------------------
-df["Номер на карта"] = (
-    df["Номер на карта"]
-    .astype(str)
-    .str.strip()
-    .str.replace(".0", "", regex=False)
-)
-
-employees = []
-
-for card in df["Номер на карта"]:
-    name = "UNKNOWN"
-    for key in card_map:
-        if card == key:
-            name = card_map[key]
-            break
-    employees.append(name)
-
-df["employee"] = employees
+df["Номер на карта"] = df["Номер на карта"].astype(str).str.strip().str.replace(".0", "", regex=False)
+df["employee"] = df["Номер на карта"].map(card_map).fillna("UNKNOWN")
 
 # -------------------------
-# SECTION
+# SIDEBAR
 # -------------------------
-st.subheader("Employee Transactions")
+st.sidebar.header("Filters")
 
-# независим dataset (само GTA)
-employee_df = df[
-    (df["company"] == "ДЖИ ТИ ЕЙ ПЕТРОЛИУМ") &
+start_date = st.sidebar.date_input("Start date", df["Дата"].min())
+end_date = st.sidebar.date_input("End date", df["Дата"].max())
+
+# -------------------------
+# DESCRIPTION (NEW)
+# -------------------------
+st.sidebar.markdown("""
+---
+
+### ℹ️ Как работи дашбордът
+
+Този дашборд анализира потреблението на гориво на база транзакции.
+
+**Глобално:**
+- Филтърът за дата влияе на всички табове
+- Данните се агрегират по дни и продукти
+
+---
+
+### 📊 Company Overview
+- Анализ по избрана фирма
+- KPI: Total, Average, Peak
+- Дневни трендове по продукти
+
+---
+
+### ⛽ Product Comparison
+- Сравнение между различни продукти и фирми
+- Филтриране чрез чекбокси
+
+---
+
+### 👤 Employee Analysis
+- Анализ по служители
+- Филтриране на конкретни хора
+""")
+
+# -------------------------
+# GLOBAL FILTER
+# -------------------------
+filtered_global = df[
     (df["Дата"] >= pd.to_datetime(start_date)) &
     (df["Дата"] <= pd.to_datetime(end_date))
 ]
 
-# -------------------------
-# FILTER ПО СЛУЖИТЕЛ (100% WORKING)
-# -------------------------
-st.markdown("### Select Employees")
+st.title("Анализ на потреблението - бензиностанции ЕКО")
 
-employees_list = sorted(employee_df["employee"].unique())
+tab1, tab2, tab3 = st.tabs([
+    "Company Overview",
+    "Product Comparison",
+    "Employee Analysis"
+])
 
-# init
-if "selected_employees" not in st.session_state:
-    st.session_state.selected_employees = employees_list.copy()
+# =========================
+# TAB 1
+# =========================
+with tab1:
 
-# -------------------------
-# BUTTONS (FIX)
-# -------------------------
-col1, col2 = st.columns(2)
+    company = st.selectbox("Company", filtered_global["company"].unique())
 
-if col1.button("Select All"):
-    st.session_state.selected_employees = employees_list.copy()
-    for emp in employees_list:
-        st.session_state[f"emp_{emp}"] = True
+    if "tab1_init" not in st.session_state:
+        for p in valid_products:
+            st.session_state[f"tab1_{p}"] = True
+        st.session_state.tab1_init = True
 
-if col2.button("Clear All"):
-    st.session_state.selected_employees = []
-    for emp in employees_list:
-        st.session_state[f"emp_{emp}"] = False
+    col1, col2 = st.columns(2)
 
-# -------------------------
-# CHECKBOX GRID
-# -------------------------
-num_cols = 4
-cols = st.columns(num_cols)
+    if col1.button("Select All"):
+        for p in valid_products:
+            st.session_state[f"tab1_{p}"] = True
 
-new_selected = []
+    if col2.button("Clear All"):
+        for p in valid_products:
+            st.session_state[f"tab1_{p}"] = False
 
-for i, emp in enumerate(employees_list):
-    col = cols[i % num_cols]
+    cols = st.columns(len(valid_products))
+    selected_products = []
 
-    key = f"emp_{emp}"
+    for i, p in enumerate(valid_products):
+        if cols[i].checkbox(p, key=f"tab1_{p}"):
+            selected_products.append(p)
 
-    # важно – sync със state
-    if key not in st.session_state:
-        st.session_state[key] = emp in st.session_state.selected_employees
-
-    val = col.checkbox(emp, key=key)
-
-    if val:
-        new_selected.append(emp)
-
-# update
-st.session_state.selected_employees = new_selected
-
-# -------------------------
-# APPLY FILTER
-# -------------------------
-if st.session_state.selected_employees:
-    employee_df = employee_df[
-        employee_df["employee"].isin(st.session_state.selected_employees)
+    filtered = filtered_global[
+        (filtered_global["company"] == company) &
+        (filtered_global["Име на артикул"].isin(selected_products))
     ]
-else:
-    employee_df = employee_df.iloc[0:0]
 
-# -------------------------
-# KPI
-# -------------------------
-total_liters = employee_df["Литри"].sum()
-total_transactions = len(employee_df)
+    if filtered.empty:
+        st.warning("No data")
+    else:
 
-avg_price = employee_df["gta_price"].mean() if "gta_price" in employee_df else 0
+        cols = st.columns(2)
 
-k1, k2, k3 = st.columns(3)
+        for i, product in enumerate(valid_products):
 
-k1.metric("Total Liters", round(total_liters, 2))
-k2.metric("Transactions", total_transactions)
-k3.metric("Avg Price", round(avg_price, 3))
+            product_df = filtered[filtered["Име на артикул"] == product]
 
-# -------------------------
-# TABLE
-# -------------------------
-st.dataframe(
-    employee_df.sort_values("Дата", ascending=False),
-    use_container_width=True
-)
+            if product_df.empty:
+                continue
 
+            trend = (
+                product_df.groupby("Дата")["Литри"]
+                .sum()
+                .reset_index()
+                .sort_values("Дата")
+            )
 
+            total = trend["Литри"].sum()
+            avg = trend["Литри"].mean()
+            peak_row = trend.loc[trend["Литри"].idxmax()]
 
+            col = cols[i % 2]
 
+            with col:
+                st.markdown(f"### {product}")
 
+                k1, k2, k3 = st.columns(3)
+                k1.metric("Total", round(total, 1))
+                k2.metric("Avg", round(avg, 1))
+                k3.metric("Peak",
+                          peak_row["Дата"].strftime("%d %b"),
+                          f"{round(peak_row['Литри'], 1)} L")
 
+                fig, ax = plt.subplots(figsize=(8, 4.5))
 
+                fig.patch.set_facecolor("#0f172a")
+                ax.set_facecolor("#0f172a")
 
+                ax.plot(trend["Дата"], trend["Литри"],
+                        marker="o", linewidth=2, color="#3b82f6")
 
+                ax.axhline(avg, linestyle="--", linewidth=2, color="#ef4444")
 
+                ax.fill_between(trend["Дата"], trend["Литри"], alpha=0.15)
 
+                ax.set_title("Daily Consumption", color="white")
+                ax.tick_params(axis='x', rotation=90, colors="white")
+                ax.tick_params(axis='y', colors="white")
 
+                ax.grid(True, linestyle="--", alpha=0.2)
 
+                for spine in ax.spines.values():
+                    spine.set_visible(False)
 
+                plt.tight_layout()
+                st.pyplot(fig)
 
+        st.subheader("Transactions")
+        st.dataframe(filtered.sort_values("Дата", ascending=False), use_container_width=True)
 
+# =========================
+# TAB 2
+# =========================
+with tab2:
 
+    if "prod_initialized" not in st.session_state:
+        for p in valid_products:
+            st.session_state[f"prod_{p}"] = True
+        st.session_state.prod_initialized = True
 
+    col1, col2 = st.columns(2)
 
+    if col1.button("Select All Products"):
+        for p in valid_products:
+            st.session_state[f"prod_{p}"] = True
 
+    if col2.button("Clear All Products"):
+        for p in valid_products:
+            st.session_state[f"prod_{p}"] = False
 
+    cols = st.columns(len(valid_products))
+    selected_products = []
 
+    for i, p in enumerate(valid_products):
+        if cols[i].checkbox(p, key=f"prod_{p}"):
+            selected_products.append(p)
 
+    product_stats = filtered_global[
+        filtered_global["Име на артикул"].isin(selected_products)
+    ]
 
+    if not product_stats.empty:
+
+        st.markdown("### Consumption by Company")
+
+        agg = (
+            product_stats
+            .groupby("company")["Литри"]
+            .sum()
+            .sort_values(ascending=False)
+        )
+
+        fig, ax = plt.subplots(figsize=(15, 12))
+
+        fig.patch.set_facecolor("#0f172a")
+        ax.set_facecolor("#0f172a")
+
+        bars = ax.barh(
+            agg.index,
+            agg.values
+        )
+
+        ax.invert_yaxis()
+
+        # текст върху баровете
+        for i, v in enumerate(agg.values):
+            ax.text(
+                v,
+                i,
+                f" {round(v, 1)}",
+                va="center",
+                color="white"
+            )
+
+        ax.set_title("Total Consumption by Company", color="white")
+
+        ax.tick_params(axis='x', colors="white")
+        ax.tick_params(axis='y', colors="white")
+
+        ax.grid(axis="x", linestyle="--", alpha=0.2)
+
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+        plt.tight_layout()
+
+        st.pyplot(fig)
+
+    st.dataframe(product_stats)
+
+# =========================
+# TAB 3
+# =========================
+with tab3:
+
+    employee_df = filtered_global[
+        filtered_global["company"] == "ДЖИ ТИ ЕЙ ПЕТРОЛИУМ"
+    ]
+
+    employees_list = sorted(employee_df["employee"].unique())
+
+    if "emp_initialized" not in st.session_state:
+        for e in employees_list:
+            st.session_state[f"emp_{e}"] = True
+        st.session_state.emp_initialized = True
+
+    col1, col2 = st.columns(2)
+
+    if col1.button("Select All Employees"):
+        for e in employees_list:
+            st.session_state[f"emp_{e}"] = True
+
+    if col2.button("Clear All Employees"):
+        for e in employees_list:
+            st.session_state[f"emp_{e}"] = False
+
+    cols = st.columns(4)
+    selected = []
+
+    for i, emp in enumerate(employees_list):
+        if cols[i % 4].checkbox(emp, key=f"emp_{emp}"):
+            selected.append(emp)
+
+    employee_df = employee_df[employee_df["employee"].isin(selected)]
+
+    if not employee_df.empty:
+
+        st.markdown("### Employee KPI")
+
+        # -------------------------
+        # AGG
+        # -------------------------
+        agg = (
+            employee_df
+            .groupby("employee")["Литри"]
+            .sum()
+            .sort_values(ascending=False)
+        )
+
+        total = agg.sum()
+        avg = agg.mean()
+        top_employee = agg.idxmax()
+        top_value = agg.max()
+
+        # =========================
+        # TOP KPI CARDS
+        # =========================
+        c1, c2, c3 = st.columns(3)
+
+        c1.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg,#0f172a,#1e293b);
+            padding:20px;
+            border-radius:12px;
+            border:1px solid #1e3a8a;">
+            <div style="color:#60a5fa;font-size:13px;">TOTAL CONSUMPTION</div>
+            <div style="color:white;font-size:26px;font-weight:700;">
+                {round(total,1)} L
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        c2.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg,#0f172a,#1e293b);
+            padding:20px;
+            border-radius:12px;
+            border:1px solid #1e3a8a;">
+            <div style="color:#60a5fa;font-size:13px;">AVERAGE / EMPLOYEE</div>
+            <div style="color:white;font-size:26px;font-weight:700;">
+                {round(avg,1)} L
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        c3.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg,#0f172a,#1e293b);
+            padding:20px;
+            border-radius:12px;
+            border:1px solid #1e3a8a;">
+            <div style="color:#60a5fa;font-size:13px;">TOP EMPLOYEE</div>
+            <div style="color:white;font-size:18px;font-weight:700;">
+                {top_employee}
+            </div>
+            <div style="color:#3b82f6;font-size:16px;">
+                {round(top_value,1)} L
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # =========================
+        # BREAKDOWN GRID
+        # =========================
+        st.markdown("### Employee Breakdown")
+
+        cols = st.columns(4)
+
+        for i, (emp, val) in enumerate(agg.items()):
+            col = cols[i % 4]
+
+            # highlight top 3
+            if i < 3:
+                border = "#3b82f6"
+                bg = "linear-gradient(135deg,#1e293b,#020617)"
+            else:
+                border = "#1e3a8a"
+                bg = "#0f172a"
+
+            col.markdown(f"""
+            <div style="
+                background:{bg};
+                padding:15px;
+                border-radius:10px;
+                border:1px solid {border};
+                margin-bottom:15px;">
+                <div style="color:white;font-size:14px;">
+                    {emp}
+                </div>
+                <div style="
+                    color:#3b82f6;
+                    font-size:20px;
+                    font-weight:700;">
+                    {round(val,1)} L
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # -------------------------
+    # TABLE
+    # -------------------------
+    st.dataframe(employee_df)
