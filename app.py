@@ -764,6 +764,9 @@ with tab4:
     # =========================
     st.markdown("### Transport Data")
 
+    course_count = len(tdf)
+    st.markdown(f"**Total Courses: {course_count}**")
+
     st.dataframe(
         tdf.sort_values("КУРС_ДАТА", ascending=False),
         use_container_width=True
