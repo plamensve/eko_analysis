@@ -424,7 +424,7 @@ with tab3:
             border-radius:12px;
             border:1px solid #1e3a8a;">
             <div style="color:#60a5fa;font-size:13px;">TOP EMPLOYEE</div>
-            <div style="color:white;font-size:18px;font-weight:700;">
+            <div style="color:white;font-size:26px;font-weight:700;">
                 {top_employee}
             </div>
         </div>
