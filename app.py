@@ -37,6 +37,24 @@ input[type="date"] {
 df = pd.read_csv("combined.csv", dtype={"Номер на карта": str})
 
 # -------------------------
+# LOAD TRANSPORT DATA
+# -------------------------
+transport_df = pd.read_csv("transport/transport_data.csv")
+
+transport_df.columns = transport_df.columns.str.strip()
+
+transport_df["КУРС_ДАТА"] = pd.to_datetime(transport_df["КУРС_ДАТА"])
+
+transport_df["КМ"] = pd.to_numeric(transport_df["КМ"], errors="coerce")
+transport_df["Л"] = pd.to_numeric(transport_df["Л"], errors="coerce")
+transport_df["€_ЦЕНА_ОБЩО"] = pd.to_numeric(transport_df["€_ЦЕНА_ОБЩО"], errors="coerce")
+
+# KPI
+transport_df["€/км"] = transport_df["€_ЦЕНА_ОБЩО"] / transport_df["КМ"]
+transport_df["л/км"] = transport_df["Л"] / transport_df["КМ"]
+transport_df["€/л"] = transport_df["€_ЦЕНА_ОБЩО"] / transport_df["Л"]
+
+# -------------------------
 # CLEAN
 # -------------------------
 df.columns = df.columns.str.strip()
@@ -137,6 +155,12 @@ st.sidebar.markdown("""
 ### 👤 Employee Analysis
 - Анализ по служители
 - Филтриране на конкретни хора
+
+---
+
+### 🚛 Transport Analysis
+- Показва ефективността на транспортите (км, литри, разходи)
+- Данните се филтрират последователно (cascading filters)
 """)
 
 # -------------------------
@@ -147,12 +171,13 @@ filtered_global = df[
     (df["Дата"] <= pd.to_datetime(end_date))
 ]
 
-st.title("Анализ на потреблението - бензиностанции ЕКО")
+st.title("GTA Petroleum Ltd. – Operational Analytics Dashboard")
 
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "Company Overview",
     "Product Comparison",
-    "Employee Analysis"
+    "Employee Analysis",
+    "Transport Analysis"
 ])
 
 # =========================
@@ -471,3 +496,276 @@ with tab3:
     # TABLE
     # -------------------------
     st.dataframe(employee_df)
+
+st.markdown("""
+<style>
+.filter-card {
+    background: linear-gradient(135deg,#0f172a,#1e293b);
+    padding: 18px;
+    border-radius: 12px;
+    border: 1px solid #1e3a8a;
+    margin-bottom: 10px;
+}
+.filter-title {
+    color: #60a5fa;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+/* =========================
+   METRIC CARDS (ADD THIS)
+========================= */
+.metric-card {
+    background: linear-gradient(135deg,#0f172a,#1e293b);
+    border: 1px solid #1e3a8a;
+    padding: 16px;
+    border-radius: 12px;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.metric-title {
+    color: #60a5fa;
+    font-size: 18px;
+}
+
+.metric-value {
+    color: white;
+    font-size: 24px;
+    font-weight: 700;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+# =========================
+# TAB 4 - TRANSPORT
+# =========================
+with tab4:
+
+    st.subheader("Transport Efficiency Dashboard")
+
+    # -------------------------
+    # BASE FILTER (GLOBAL DATE)
+    # -------------------------
+    tdf = transport_df[
+        (transport_df["КУРС_ДАТА"] >= pd.to_datetime(start_date)) &
+        (transport_df["КУРС_ДАТА"] <= pd.to_datetime(end_date))
+    ].copy()
+
+    # -------------------------
+    # TRADER GROUP
+    # -------------------------
+    tdf["group"] = tdf["ТЪРГОВЕЦ"].apply(
+        lambda x: x if x in ["Vesela Nikolova", "Simeon Hadzhiev"] else "Other"
+    )
+
+    groups = sorted(tdf["group"].dropna().unique())
+
+    # RESET
+    if "tr_keys" not in st.session_state or st.session_state.tr_keys != groups:
+        for k in list(st.session_state.keys()):
+            if k.startswith("tr_"):
+                del st.session_state[k]
+        for g in groups:
+            st.session_state[f"tr_{g}"] = True
+        st.session_state.tr_keys = groups
+
+    # -------------------------
+    # TRADERS
+    # -------------------------
+    st.markdown("""
+    <div class="filter-card">
+        <div class="filter-title">Traders</div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+
+    if col1.button("Select All Traders"):
+        for g in groups:
+            st.session_state[f"tr_{g}"] = True
+
+    if col2.button("Clear All Traders"):
+        for g in groups:
+            st.session_state[f"tr_{g}"] = False
+
+    cols = st.columns(3)
+    selected_groups = []
+
+    for i, g in enumerate(groups):
+        if cols[i % 3].checkbox(g, key=f"tr_{g}"):
+            selected_groups.append(g)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if selected_groups:
+        tdf = tdf[tdf["group"].isin(selected_groups)]
+    else:
+        tdf = tdf.iloc[0:0]
+
+    # =========================
+    # CARRIERS
+    # =========================
+    all_carriers = sorted(tdf["ПРЕВОЗВАЧ"].dropna().unique())
+
+    if "car_keys" not in st.session_state or st.session_state.car_keys != all_carriers:
+        for k in list(st.session_state.keys()):
+            if k.startswith("car_"):
+                del st.session_state[k]
+        for c in all_carriers:
+            st.session_state[f"car_{c}"] = True
+        st.session_state.car_keys = all_carriers
+
+    st.markdown("""
+    <div class="filter-card">
+        <div class="filter-title">Carriers</div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+
+    if col1.button("Select All Carriers"):
+        for c in all_carriers:
+            st.session_state[f"car_{c}"] = True
+
+    if col2.button("Clear All Carriers"):
+        for c in all_carriers:
+            st.session_state[f"car_{c}"] = False
+
+    cols = st.columns(4)
+    selected_carriers = []
+
+    for i, c in enumerate(all_carriers):
+        if cols[i % 4].checkbox(c, key=f"car_{c}"):
+            selected_carriers.append(c)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if selected_carriers:
+        tdf = tdf[tdf["ПРЕВОЗВАЧ"].isin(selected_carriers)]
+    else:
+        tdf = tdf.iloc[0:0]
+
+    # =========================
+    # DRIVERS (NEW)
+    # =========================
+    all_drivers = sorted(tdf["ШОФЬОР"].dropna().unique())
+
+    if "drv_keys" not in st.session_state or st.session_state.drv_keys != all_drivers:
+        for k in list(st.session_state.keys()):
+            if k.startswith("drv_"):
+                del st.session_state[k]
+        for d in all_drivers:
+            st.session_state[f"drv_{d}"] = True
+        st.session_state.drv_keys = all_drivers
+
+    st.markdown("""
+    <div class="filter-card">
+        <div class="filter-title">Drivers</div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+
+    if col1.button("Select All Drivers"):
+        for d in all_drivers:
+            st.session_state[f"drv_{d}"] = True
+
+    if col2.button("Clear All Drivers"):
+        for d in all_drivers:
+            st.session_state[f"drv_{d}"] = False
+
+    cols = st.columns(4)
+    selected_drivers = []
+
+    for i, d in enumerate(all_drivers):
+        if cols[i % 4].checkbox(d, key=f"drv_{d}"):
+            selected_drivers.append(d)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if selected_drivers:
+        tdf = tdf[tdf["ШОФЬОР"].isin(selected_drivers)]
+    else:
+        tdf = tdf.iloc[0:0]
+
+    # =========================
+    # KPI (CARDS)
+    # =========================
+    st.markdown("### Total")
+    total_km = tdf["КМ"].sum()
+    total_liters = tdf["Л"].sum()
+    total_cost = tdf["€_ЦЕНА_ОБЩО"].sum()
+
+    c1, c2, c3 = st.columns(3)
+
+    c1.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-title">Total KM</div>
+        <div class="metric-value">{round(total_km, 1)}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    c2.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-title">Total Liters</div>
+        <div class="metric-value">{round(total_liters, 1)}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    c3.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-title">Total Cost €</div>
+        <div class="metric-value">{round(total_cost, 1)}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # =========================
+    # AVERAGES (CARDS)
+    # =========================
+    st.markdown("### Averages")
+
+    if not tdf.empty:
+
+        avg_liters = tdf["Л"].mean()
+        avg_cost = tdf["€_ЦЕНА_ОБЩО"].mean()
+
+        total_liters = tdf["Л"].sum()
+        total_cost = tdf["€_ЦЕНА_ОБЩО"].sum()
+
+        cost_per_1000 = (total_cost / total_liters * 1000) if total_liters > 0 else 0
+
+        m1, m2, m3 = st.columns(3)
+
+        m1.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-title">Avg Transported Liters</div>
+            <div class="metric-value">{round(avg_liters, 1)}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        m2.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-title">Avg Total Cost €</div>
+            <div class="metric-value">{round(avg_cost, 2)}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        m3.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-title">Cost per 1000L €</div>
+            <div class="metric-value">{round(cost_per_1000, 2)}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    else:
+        st.warning("No data for selected filters")
+
+    # =========================
+    # TABLE
+    # =========================
+    st.markdown("### Transport Data")
+
+    st.dataframe(
+        tdf.sort_values("КУРС_ДАТА", ascending=False),
+        use_container_width=True
+    )
+
