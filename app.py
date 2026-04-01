@@ -576,7 +576,7 @@ with tab4:
     # -------------------------
     st.markdown("""
     <div class="filter-card">
-        <div class="filter-title">Traders</div>
+        <div class="filter-title">ТЪРГОВЕЦ</div>
     """, unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
@@ -618,7 +618,7 @@ with tab4:
 
     st.markdown("""
     <div class="filter-card">
-        <div class="filter-title">Carriers</div>
+        <div class="filter-title">ПРЕВОЗВАЧ</div>
     """, unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
@@ -660,7 +660,7 @@ with tab4:
 
     st.markdown("""
     <div class="filter-card">
-        <div class="filter-title">Drivers</div>
+        <div class="filter-title">ШОФЬОР</div>
     """, unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
