@@ -767,6 +767,39 @@ with tab4:
     course_count = len(tdf)
     st.markdown(f"**Total Courses: {course_count}**")
 
+    # =========================
+    # COLUMN ORDER (CUSTOM)
+    # =========================
+    desired_order = [
+        "ТЪРГОВЕЦ",
+        "ВЪЗЛОЖИТЕЛ",
+        "КУРС_ДАТА",
+        "КУРС",
+        "БРОЙ_ОБЕКТИ",
+        "ПРЕВОЗВАЧ",
+        "ШОФЬОР",
+        "ВЛЕКАЧ",
+        "ЦИСТЕРНА"
+        "КМ",
+        "Л",
+        "€_ЦЕНА_ОБЩО",
+        "€/км",
+        "л/км",
+        "€/л",
+        "ДЕН",
+        "МЕСЕЦ",
+        "ГОДИНА"
+
+    ]
+
+    # оставя само колоните, които съществуват (safe)
+    existing_cols = [col for col in desired_order if col in tdf.columns]
+
+    # добавя останалите колони накрая (ако има)
+    remaining_cols = [col for col in tdf.columns if col not in existing_cols]
+
+    tdf = tdf[existing_cols + remaining_cols]
+
     st.dataframe(
         tdf.sort_values("КУРС_ДАТА", ascending=False),
         use_container_width=True
