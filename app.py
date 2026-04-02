@@ -34,7 +34,7 @@ input[type="date"] {
 # -------------------------
 # LOAD DATA
 # -------------------------
-df = pd.read_csv("combined.csv", dtype={"Номер на карта": str})
+df = pd.read_csv("combined_data/combined.csv", dtype={"Номер на карта": str})
 
 # -------------------------
 # LOAD TRANSPORT DATA
