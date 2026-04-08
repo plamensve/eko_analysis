@@ -688,6 +688,48 @@ with tab4:
         tdf = tdf.iloc[0:0]
 
     # =========================
+    # Truck (ВЛЕКАЧ)
+    # =========================
+    all_tractors = sorted(tdf["ВЛЕКАЧ"].dropna().unique())
+
+    if "trc_keys" not in st.session_state or st.session_state.trc_keys != all_tractors:
+        for k in list(st.session_state.keys()):
+            if k.startswith("trc_"):
+                del st.session_state[k]
+        for t in all_tractors:
+            st.session_state[f"trc_{t}"] = True
+        st.session_state.trc_keys = all_tractors
+
+    st.markdown("""
+    <div class="filter-card">
+        <div class="filter-title">ВЛЕКАЧ</div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+
+    if col1.button("Select All Tractors"):
+        for t in all_tractors:
+            st.session_state[f"trc_{t}"] = True
+
+    if col2.button("Clear All Tractors"):
+        for t in all_tractors:
+            st.session_state[f"trc_{t}"] = False
+
+    cols = st.columns(4)
+    selected_tractors = []
+
+    for i, t in enumerate(all_tractors):
+        if cols[i % 4].checkbox(t, key=f"trc_{t}"):
+            selected_tractors.append(t)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if selected_tractors:
+        tdf = tdf[tdf["ВЛЕКАЧ"].isin(selected_tractors)]
+    else:
+        tdf = tdf.iloc[0:0]
+
+    # =========================
     # KPI (CARDS)
     # =========================
     st.markdown("### Total")
