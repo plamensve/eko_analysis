@@ -43,22 +43,36 @@ transport_df = pd.read_csv("transport/transport_data.csv")
 
 transport_df.columns = transport_df.columns.str.strip()
 
-transport_df["КУРС_ДАТА"] = pd.to_datetime(transport_df["КУРС_ДАТА"])
+transport_df["КУРС_ДАТА"] = pd.to_datetime(
+    transport_df["КУРС_ДАТА"],
+    dayfirst=True
+)
 
 transport_df["КМ"] = pd.to_numeric(transport_df["КМ"], errors="coerce")
 transport_df["Л"] = pd.to_numeric(transport_df["Л"], errors="coerce")
 transport_df["€_ЦЕНА_ОБЩО"] = pd.to_numeric(transport_df["€_ЦЕНА_ОБЩО"], errors="coerce")
 
 # KPI
-transport_df["€/км"] = transport_df["€_ЦЕНА_ОБЩО"] / transport_df["КМ"]
-transport_df["л/км"] = transport_df["Л"] / transport_df["КМ"]
-transport_df["€/л"] = transport_df["€_ЦЕНА_ОБЩО"] / transport_df["Л"]
+transport_df["€/км"] = (
+    transport_df["€_ЦЕНА_ОБЩО"] / transport_df["КМ"]
+).replace([float("inf")], 0)
+
+transport_df["л/км"] = (
+    transport_df["Л"] / transport_df["КМ"]
+).replace([float("inf")], 0)
+
+transport_df["€/л"] = (
+    transport_df["€_ЦЕНА_ОБЩО"] / transport_df["Л"]
+).replace([float("inf")], 0)
 
 # -------------------------
 # CLEAN
 # -------------------------
 df.columns = df.columns.str.strip()
-df["Дата"] = pd.to_datetime(df["Дата"])
+df["Дата"] = pd.to_datetime(
+    df["Дата"],
+    dayfirst=True
+)
 df["Име на артикул"] = df["Име на артикул"].str.strip().str.upper()
 df["Литри"] = pd.to_numeric(df["Литри"], errors="coerce")
 
@@ -86,7 +100,8 @@ valid_products = [
     "DIESEL EKONOMY",
     "95 EKONOMY UNLEADED",
     "DIESEL DOUBLE FILTERED",
-    "EKO RACING 100"
+    "EKO RACING 100",
+    "E GAS LPG"
 ]
 
 df = df[df["Име на артикул"].isin(valid_products)]
@@ -821,7 +836,7 @@ with tab4:
         "ПРЕВОЗВАЧ",
         "ШОФЬОР",
         "ВЛЕКАЧ",
-        "ЦИСТЕРНА"
+        "ЦИСТЕРНА",
         "КМ",
         "Л",
         "€_ЦЕНА_ОБЩО",
