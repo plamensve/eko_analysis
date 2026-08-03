@@ -43,6 +43,18 @@ transport_df = pd.read_csv("transport/transport_data.csv")
 
 transport_df.columns = transport_df.columns.str.strip()
 
+transport_df["ВЛЕКАЧ"] = (
+    transport_df["ВЛЕКАЧ"]
+    .fillna("НЯМА ВЛЕКАЧ")
+    .astype(str)
+    .str.strip()
+)
+
+transport_df.loc[
+    transport_df["ВЛЕКАЧ"] == "",
+    "ВЛЕКАЧ"
+] = "НЯМА ВЛЕКАЧ"
+
 transport_df["КУРС_ДАТА"] = pd.to_datetime(
     transport_df["КУРС_ДАТА"],
     dayfirst=True
@@ -705,7 +717,7 @@ with tab4:
     # =========================
     # Truck (ВЛЕКАЧ)
     # =========================
-    all_tractors = sorted(tdf["ВЛЕКАЧ"].dropna().unique())
+    all_tractors = sorted(tdf["ВЛЕКАЧ"].unique())
 
     if "trc_keys" not in st.session_state or st.session_state.trc_keys != all_tractors:
         for k in list(st.session_state.keys()):
