@@ -63,6 +63,15 @@ transport_df["КУРС_ДАТА"] = pd.to_datetime(
 transport_df["КМ"] = pd.to_numeric(transport_df["КМ"], errors="coerce")
 transport_df["Л"] = pd.to_numeric(transport_df["Л"], errors="coerce")
 transport_df["€_ЦЕНА_ОБЩО"] = pd.to_numeric(transport_df["€_ЦЕНА_ОБЩО"], errors="coerce")
+transport_df["ЛИТРИ_1"] = pd.to_numeric(
+    transport_df["ЛИТРИ_1"],
+    errors="coerce"
+)
+
+transport_df["ЛИТРИ_2"] = pd.to_numeric(
+    transport_df["ЛИТРИ_2"],
+    errors="coerce"
+)
 
 # KPI
 transport_df["€/км"] = (
@@ -760,30 +769,47 @@ with tab4:
     # KPI (CARDS)
     # =========================
     st.markdown("### Total")
+
     total_km = tdf["КМ"].sum()
     total_liters = tdf["Л"].sum()
+    total_liters_1 = tdf["ЛИТРИ_1"].sum()
+    total_liters_2 = tdf["ЛИТРИ_2"].sum()
     total_cost = tdf["€_ЦЕНА_ОБЩО"].sum()
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4, c5 = st.columns(5)
 
     c1.markdown(f"""
     <div class="metric-card">
         <div class="metric-title">Total KM</div>
-        <div class="metric-value">{round(total_km, 1)}</div>
+        <div class="metric-value">{total_km:,.1f}</div>
     </div>
     """, unsafe_allow_html=True)
 
     c2.markdown(f"""
     <div class="metric-card">
         <div class="metric-title">Total Liters</div>
-        <div class="metric-value">{round(total_liters, 1)}</div>
+        <div class="metric-value">{total_liters:,.1f}</div>
     </div>
     """, unsafe_allow_html=True)
 
     c3.markdown(f"""
     <div class="metric-card">
+        <div class="metric-title">Total ЛИТРИ_1</div>
+        <div class="metric-value">{total_liters_1:,.1f}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    c4.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-title">Total ЛИТРИ_2</div>
+        <div class="metric-value">{total_liters_2:,.1f}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    c5.markdown(f"""
+    <div class="metric-card">
         <div class="metric-title">Total Cost €</div>
-        <div class="metric-value">{round(total_cost, 1)}</div>
+        <div class="metric-value">{total_cost:,.2f}</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -857,8 +883,9 @@ with tab4:
         "€/л",
         "ДЕН",
         "МЕСЕЦ",
-        "ГОДИНА"
-
+        "ГОДИНА",
+        'ЛИТРИ_1',
+        'ЛИТРИ_2'
     ]
 
     # оставя само колоните, които съществуват (safe)
