@@ -337,32 +337,106 @@ def render_cards():
                 if (params.progressSort) params.progressSort(false);
             };
             const remove = document.createElement('button');
-            remove.type = 'button'; remove.textContent = '×';
-            remove.title = 'Изтрий колоната — натисни два пъти';
+            remove.type = 'button';
+            remove.textContent = '×';
+            remove.title = 'Изтриване на колона с потвърждение';
+            remove.setAttribute('aria-label', 'Изтрий колона ' + label.textContent);
             remove.style.cssText = 'flex:none;color:#ac3341;border:0;background:transparent;' +
                                   'cursor:pointer;font-size:18px;font-weight:700;padding:1px 5px;';
-            let confirm = false;
-            remove.onclick = e => {
-                e.preventDefault(); e.stopPropagation();
-                if (!confirm) {
-                    confirm = true;
-                    remove.textContent = '✓';
-                    remove.title = 'Натисни отново за окончателно изтриване';
-                    remove.style.background = '#ffccd1';
-                    return;
-                }
-                let anchor = params.api.getDisplayedRowAtIndex(0);
-                if (!anchor) params.api.forEachNode(node => {
-                    if (!anchor && !node.rowPinned) anchor = node;
-                });
-                if (anchor) anchor.setDataValue('_grid_action',
-                    'delete_column:' + encodeURIComponent(params.column.getColId()));
+
+            remove.onclick = event => {
+                event.preventDefault();
+                event.stopPropagation();
+                // A real confirmation dialog is safer than the old two-click icon.
+                if (this.closeConfirmation) this.closeConfirmation();
+                const columnName = params.column.getColId();
+                const overlay = document.createElement('div');
+                overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483600;' +
+                    'background:rgba(4,11,24,.67);display:flex;align-items:center;' +
+                    'justify-content:center;padding:16px;box-sizing:border-box;';
+                const dialog = document.createElement('div');
+                dialog.setAttribute('role', 'alertdialog');
+                dialog.setAttribute('aria-modal', 'true');
+                dialog.setAttribute('aria-labelledby', 'cards-delete-column-title');
+                dialog.setAttribute('aria-describedby', 'cards-delete-column-description');
+                dialog.style.cssText = 'width:min(450px,100%);border:1px solid #496781;' +
+                    'background:#10243b;color:#f6faff;box-shadow:0 20px 55px #0008;' +
+                    'border-radius:16px;padding:23px;box-sizing:border-box;';
+                const title = document.createElement('h3');
+                title.id = 'cards-delete-column-title';
+                title.textContent = 'Изтриване на колона';
+                title.style.cssText = 'font-size:19px;font-weight:750;margin:0 0 12px;color:white;';
+                const question = document.createElement('p');
+                question.id = 'cards-delete-column-description';
+                question.style.cssText = 'font-size:14px;line-height:1.55;margin:0 0 10px;color:#e6effa;';
+                question.appendChild(document.createTextNode('Сигурни ли сте, че искате да изтриете колоната '));
+                const boldName = document.createElement('strong');
+                boldName.textContent = '„' + columnName + '“';
+                question.appendChild(boldName);
+                question.appendChild(document.createTextNode('?'));
+                const warning = document.createElement('p');
+                warning.textContent = 'Всички данни в тази колона ще бъдат премахнати от текущия регистър и следващия Excel експорт.';
+                warning.style.cssText = 'font-size:12px;line-height:1.5;margin:0 0 22px;color:#ffd0cb;';
+                const actions = document.createElement('div');
+                actions.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;';
+                const cancel = document.createElement('button');
+                cancel.type = 'button';
+                cancel.textContent = 'Отказ';
+                cancel.style.cssText = 'border-radius:9px;padding:10px 17px;font-weight:650;' +
+                    'background:#294760;color:white;border:1px solid #58738d;cursor:pointer;';
+                const confirm = document.createElement('button');
+                confirm.type = 'button';
+                confirm.textContent = 'Изтрий колоната';
+                confirm.style.cssText = 'border-radius:9px;padding:10px 17px;font-weight:700;' +
+                    'background:#b42335;color:white;border:1px solid #dd4255;cursor:pointer;';
+                let originalFocus = document.activeElement;
+                const onKeyDown = e => {
+                    if (e.key === 'Escape') { e.preventDefault(); close(); }
+                    if (e.key === 'Tab') {
+                        const first = cancel, last = confirm;
+                        if (e.shiftKey && document.activeElement === first) {
+                            e.preventDefault(); last.focus();
+                        } else if (!e.shiftKey && document.activeElement === last) {
+                            e.preventDefault(); first.focus();
+                        }
+                    }
+                };
+                const close = () => {
+                    overlay.remove();
+                    document.removeEventListener('keydown', onKeyDown, true);
+                    if (this.closeConfirmation === close) this.closeConfirmation = null;
+                    if (originalFocus && originalFocus.isConnected) originalFocus.focus();
+                };
+                this.closeConfirmation = close;
+                cancel.onclick = e => { e.stopPropagation(); close(); };
+                confirm.onclick = e => {
+                    e.preventDefault(); e.stopPropagation();
+                    let anchor = params.api.getDisplayedRowAtIndex(0);
+                    if (!anchor) params.api.forEachNode(node => {
+                        if (!anchor && !node.rowPinned) anchor = node;
+                    });
+                    if (anchor) {
+                        anchor.setDataValue('_grid_action',
+                            'delete_column:' + encodeURIComponent(columnName));
+                        close();
+                    } else {
+                        warning.textContent = 'Неуспешно изтриване. Опитайте отново.';
+                    }
+                };
+                overlay.onclick = e => { if (e.target === overlay) close(); };
+                actions.appendChild(cancel); actions.appendChild(confirm);
+                dialog.appendChild(title); dialog.appendChild(question);
+                dialog.appendChild(warning); dialog.appendChild(actions);
+                overlay.appendChild(dialog); document.body.appendChild(overlay);
+                document.addEventListener('keydown', onKeyDown, true);
+                cancel.focus();
             };
             root.appendChild(label); root.appendChild(remove);
             this.eGui = root;
         }
         getGui() { return this.eGui; }
         refresh() { return false; }
+        destroy() { if (this.closeConfirmation) this.closeConfirmation(); }
     }
     """)
     plus_header_js = JsCode("""
