@@ -144,22 +144,34 @@ st.markdown("""
     border-color:#7bbde9 !important;
     box-shadow:0 0 0 2px rgba(123,189,233,.25) !important;
 }
+/* Let Streamlit size the button; forcing width:100% plus display:flex
+   on the button caused a shrink-to-content cycle and vertical text wrapping. */
+[data-testid="stSidebar"] [data-testid="stElementContainer"]:has([data-testid="stButton"]) {
+    width:100% !important;
+    min-width:0 !important;
+    align-self:stretch !important;
+}
+[data-testid="stSidebar"] [data-testid="stButton"] {
+    width:100% !important;
+    min-width:0 !important;
+}
 [data-testid="stSidebar"] [data-testid="stButton"] button {
     min-height:42px;
-    width:100%;
     box-sizing:border-box;
-    display:flex;
-    align-items:center;
-    justify-content:center;
     background:linear-gradient(115deg,#28516d,#34768d) !important;
     color:#fff !important;
     border:1px solid #5988a5 !important;
     border-radius:10px !important;
     box-shadow:none !important;
-    outline:none;
     transition:background .15s ease,border-color .15s ease;
+    white-space:nowrap !important;
 }
-[data-testid="stSidebar"] [data-testid="stButton"] button p,
+[data-testid="stSidebar"] [data-testid="stButton"] button p {
+    color:#fff !important;
+    white-space:nowrap !important;
+    word-break:normal !important;
+    overflow-wrap:normal !important;
+}
 [data-testid="stSidebar"] [data-testid="stButton"] button svg {
     color:#fff !important;
 }
@@ -308,7 +320,7 @@ with tab_analysis:
     with st.sidebar:
         st.markdown("### 🔎 Прецизирай резултатите")
         st.caption("Без избор = всички. По подразбиране е избран търговец Vesela Nikolova.")
-        if st.button("↺ Покажи всички", use_container_width=True, help="Изчиства ограниченията по търговец, превозвач, шофьор и влекач."):
+        if st.button("↺ Покажи всички", use_container_width=True, key="transport_reset_filters", help="Изчиства ограниченията по търговец, превозвач, шофьор и влекач."):
             for key in ("ТЪРГОВЕЦ", "ПРЕВОЗВАЧ", "ШОФЬОР", "ВЛЕКАЧ"):
                 st.session_state[f"filter_{key}"] = []
             st.rerun()
