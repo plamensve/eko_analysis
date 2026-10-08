@@ -37,7 +37,7 @@ st.markdown("""
 
 .block-container {max-width: 1600px; padding-top: 5.5rem; padding-bottom: 3rem;}
 [data-testid="stSidebar"] {
-    background:linear-gradient(165deg,#18334e 0%,#204661 55%,#28576b 100%);
+    background:linear-gradient(112deg,#10243f 0%,#173f63 61%,#23627e 100%);
     border-right:1px solid #54758e;}
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
