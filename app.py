@@ -9,12 +9,31 @@ st.set_page_config(page_title="Транспортен анализ", page_icon="
 st.markdown("""
 <style>
 .stApp {background: #f5f7fb; color: #17233b;}
-[data-testid="stHeader"] {background: #10243e; border-bottom: 1px solid #29435f;}
+[data-testid="stHeader"] {
+    background:linear-gradient(110deg,#050a12 0%,#0b1b2c 60%,#122f40 100%);
+    border-bottom:1px solid #35516a;box-shadow:0 3px 14px rgba(0,0,0,.22);}
 [data-testid="stHeader"] button,
 [data-testid="stHeader"] button p,
-[data-testid="stHeader"] a {color: #f0f5ff;}
-[data-testid="stHeader"] button svg {fill: currentColor;}
-[data-testid="stHeader"] button:hover {background: #29435f; color: #ffffff;}
+[data-testid="stHeader"] a,
+[data-testid="stHeader"] [data-testid="stIconMaterial"],
+[data-testid="stHeader"] [data-testid="stIconEmoji"],
+[data-testid="stSidebarCollapsedControl"] button,
+[data-testid="stSidebarCollapsedControl"] [data-testid="stIconMaterial"] {
+    color:#f0f6ff !important;opacity:1;}
+[data-testid="stHeader"] button svg,
+[data-testid="stSidebarCollapsedControl"] button svg {color:#f0f6ff;fill:currentColor;}
+[data-testid="stHeader"] button svg [stroke]:not([stroke="none"]),
+[data-testid="stSidebarCollapsedControl"] button svg [stroke]:not([stroke="none"]) {
+    stroke:currentColor;}
+[data-testid="stHeader"] button,
+[data-testid="stSidebarCollapsedControl"] button {
+    background:rgba(38,70,95,.65);border:1px solid #46637c;border-radius:9px;}
+[data-testid="stHeader"] button:hover,
+[data-testid="stSidebarCollapsedControl"] button:hover {
+    background:#294d68;border-color:#8eb9d8;}
+[data-testid="stHeader"] button:focus-visible,
+[data-testid="stSidebarCollapsedControl"] button:focus-visible {
+    outline:2px solid #a5d5f3;outline-offset:2px;}
 
 .block-container {max-width: 1600px; padding-top: 5.5rem; padding-bottom: 3rem;}
 [data-testid="stSidebar"] {
