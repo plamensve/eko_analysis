@@ -7,6 +7,8 @@ Never commit the workbook or a secrets file containing card PINs to public Git.
 import base64
 import hashlib
 import re
+import json
+from urllib.parse import unquote
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -220,13 +222,13 @@ def render_cards():
                                      kind="stable", key=lambda col: col.str.casefold())
 
     st.caption(f"Показани {len(visible)} от {len(whole)} записа. "
-               "Десен бутон върху ред → Оцветяване. "
-               "Двоен клик върху клетка → редакция.")
+               "＋ в заглавката → нова колона; ＋ в последния ред → нов запис. "
+               "× върху колона/ред → изтриване с второ натискане.")
     # Native AG Grid context menus require an Enterprise module. This custom
     # DOM menu uses Community APIs and therefore requires no paid license.
     palette_js = JsCode("""
     function(params) {
-        if (!params || !params.node || !params.node.data) return;
+        if (!params || !params.node || !params.node.data || params.node.rowPinned || params.node.data._row_id === -1) return;
         const ev = params.event;
         if (ev) { ev.preventDefault(); ev.stopPropagation(); }
         document.querySelectorAll('.cards-row-context').forEach(x => x.remove());
@@ -314,89 +316,160 @@ def render_cards():
         return undefined;
     }
     """)
-    # Show forms only when the user invokes the + inside the table.
-    @st.dialog("➕ Нова колона")
-    def new_column_dialog():
-        with st.form(f"new_grid_col_{selected}"):
-            name = st.text_input("Име на колоната", max_chars=100)
-            initial = st.text_input("Начална стойност (по избор)")
-            position = st.selectbox(
-                "Позиция", ["След последната колона", "Преди служебните колони"]
-            )
-            ok = st.form_submit_button("Създай колона", use_container_width=True)
-        if ok:
-            name = name.strip()
-            if not name:
-                st.error("Попълни име.")
-            elif name.casefold() in {c.casefold() for c in whole.columns} or name.startswith("_"):
-                st.error("Това име вече съществува или е запазено.")
-            else:
-                insert_at = (len(whole.columns) if position == "След последната колона"
-                             else len(whole.columns) - sum(c in whole.columns for c in (CREATED, UPDATED, ROW_COLOR)))
-                whole.insert(insert_at, name, initial)
-                st.session_state.cards_tables[selected] = whole
-                st.session_state.cards_version += 1
-                st.rerun()
-
-    @st.dialog("➕ Нов ред")
-    def new_row_dialog():
-        st.write("Новият ред ще се появи в края на листа и може да бъде попълнен директно в таблицата.")
-        if st.button("Добави празен ред", use_container_width=True, type="primary"):
-            now = datetime.now(ZoneInfo("Europe/Sofia")).isoformat(timespec="seconds")
-            empty = {c: "" for c in whole.columns}
-            empty.update({CREATED: now, UPDATED: now})
-            st.session_state.cards_tables[selected] = pd.concat(
-                [whole, pd.DataFrame([empty])], ignore_index=True)
-            st.session_state.cards_version += 1
-            st.rerun()
-
-    action = st.session_state.pop("cards_pending_action", None)
-    if action == ("column", selected):
-        new_column_dialog()
-    elif action == ("row", selected):
-        new_row_dialog()
-
+    # These are real, inline grid controls: no Streamlit forms or dialogs.
+    # The final column header accepts a new field name; the pinned bottom
+    # row adds a blank record. A small x on each header/row deletes in place.
+    header_js = JsCode("""
+    function(params) {
+        const root = document.createElement('div');
+        root.style.cssText = 'display:flex;align-items:center;gap:5px;width:100%;height:100%;min-width:0;';
+        const label = document.createElement('span');
+        label.textContent = params.displayName || params.column.getColId();
+        label.title = 'Натисни за сортиране';
+        label.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;' +
+                             'white-space:nowrap;cursor:pointer;font-weight:650;';
+        label.onclick = (e) => { e.stopPropagation(); params.progressSort(false); };
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.textContent = '×';
+        remove.title = 'Изтрий тази колона (две натискания за потвърждение)';
+        remove.style.cssText = 'flex:none;color:#ac3341;border:0;background:transparent;' +
+                              'cursor:pointer;font-size:18px;font-weight:700;padding:1px 5px;';
+        let confirm = false;
+        remove.onclick = (e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (!confirm) {
+                confirm = true;
+                remove.textContent = '✓';
+                remove.title = 'Натисни отново за окончателно изтриване на колоната';
+                remove.style.background = '#ffccd1';
+                return;
+            }
+            const anchor = params.api.getDisplayedRowAtIndex(0);
+            if (anchor) {
+                anchor.setDataValue('_grid_action',
+                    'delete_column:' + encodeURIComponent(params.column.getColId()));
+            }
+        };
+        root.appendChild(label); root.appendChild(remove);
+        return root;
+    }
+    """)
+    plus_header_js = JsCode("""
+    function(params) {
+        const root = document.createElement('div');
+        root.style.cssText = 'display:flex;align-items:center;gap:3px;width:100%;height:100%;';
+        const button = document.createElement('button');
+        button.type = 'button'; button.textContent = '＋ Колона';
+        button.title = 'Добави колона директно тук';
+        button.style.cssText = 'width:100%;border:1px dashed #5683ac;border-radius:6px;' +
+                               'background:#eaf4ff;color:#145184;font-weight:700;cursor:pointer;';
+        const input = document.createElement('input');
+        input.type = 'text'; input.placeholder = 'Име на колона';
+        input.title = 'Напиши име и натисни Enter (Esc за отказ)';
+        input.maxLength = 100;
+        input.style.cssText = 'width:100%;min-width:0;display:none;border:1px solid #5b9bc7;' +
+                              'border-radius:5px;padding:4px;font-size:12px;color:#12243a;background:white;';
+        function reset() {
+            input.value = ''; input.style.display = 'none'; button.style.display = '';
+        }
+        button.onclick = e => {
+            e.preventDefault(); e.stopPropagation();
+            button.style.display = 'none'; input.style.display = ''; input.focus();
+        };
+        input.onkeydown = e => {
+            e.stopPropagation();
+            if (e.key === 'Escape') { e.preventDefault(); reset(); }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const name = input.value.trim();
+                if (!name) { input.title = 'Въведи име'; input.focus(); return; }
+                const anchor = params.api.getDisplayedRowAtIndex(0);
+                if (anchor) {
+                    anchor.setDataValue('_grid_action',
+                        'add_column:' + encodeURIComponent(name));
+                }
+                reset();
+            }
+        };
+        root.appendChild(button); root.appendChild(input);
+        return root;
+    }
+    """)
+    row_action_js = JsCode("""
+    function(params) {
+        const element = document.createElement('span');
+        const isNew = !!params.node.rowPinned;
+        const confirming = !!params.node._confirmDelete;
+        element.textContent = isNew ? '＋ Нов ред' : (confirming ? '✓ Изтрий?' : '×');
+        element.title = isNew ? 'Добави нов ред' : (
+            confirming ? 'Натисни пак за изтриване' : 'Изтрий реда — потвърди с второ натискане');
+        element.style.cssText = 'font-weight:700;cursor:pointer;color:' +
+            (confirming ? '#c02942' : '#176b9e') + ';font-size:' +
+            (isNew ? '13px' : '19px') + ';white-space:nowrap;';
+        return element;
+    }
+    """)
+    cell_click_js = JsCode("""
+    function(params) {
+        if (!params.colDef || params.colDef.field !== '_grid_action') return;
+        const event = params.event;
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        const anchor = params.api.getDisplayedRowAtIndex(0);
+        if (!anchor) return;
+        if (params.node.rowPinned) {
+            anchor.setDataValue('_grid_action', 'add_row');
+            return;
+        }
+        const rowId = Number(params.node.data._row_id);
+        if (rowId < 0) return;
+        if (!params.node._confirmDelete) {
+            params.node._confirmDelete = true;
+            params.api.refreshCells({rowNodes:[params.node],columns:['_grid_action'],force:true});
+            return;
+        }
+        anchor.setDataValue('_grid_action', 'delete_row:' + rowId);
+    }
+    """)
     display = visible.copy()
     display['_row_id'] = display.index.astype(int)
     display['_grid_action'] = ''
+    if display.empty:
+        # An invisible transport row allows + actions even when filters yield no records.
+        empty_anchor = {name: '' for name in display.columns}
+        empty_anchor['_row_id'] = -1
+        display = pd.DataFrame([empty_anchor], columns=display.columns)
+
     grid = GridOptionsBuilder.from_dataframe(display)
     grid.configure_default_column(editable=True, sortable=True, filter=True,
                                   resizable=True, minWidth=135)
     for readonly in (CREATED, UPDATED, ROW_COLOR, '_row_id'):
-        grid.configure_column(readonly, editable=False, hide=(readonly in (ROW_COLOR, '_row_id')))
-    grid.configure_column('_grid_action', headerName='＋', pinned='right',
-                          width=62, minWidth=62, maxWidth=62, editable=False,
+        grid.configure_column(readonly, editable=False,
+                              hide=(readonly in (ROW_COLOR, '_row_id')))
+    grid.configure_column('_grid_action', headerName='＋ Колона', pinned='right',
+                          width=120, minWidth=120, maxWidth=155, editable=False,
                           sortable=False, filter=False, suppressMovable=True,
-                          cellRenderer=JsCode("""function(params) {
-                              return '<span style="font-size:20px;font-weight:700;color:#2188c5">＋</span>';
-                          }"""))
+                          headerComponent=plus_header_js, cellRenderer=row_action_js)
     options = grid.build()
-    options['onColumnHeaderClicked'] = JsCode("""
-    function(params) {
-        if (params.column.getColId() !== '_grid_action') return;
-        const node = params.api.getDisplayedRowAtIndex(0);
-        if (node && !node.rowPinned) node.setDataValue('_grid_action', 'add_column');
-    }
-    """)
-    options['onCellClicked'] = JsCode("""
-    function(params) {
-        if (params.colDef.field !== '_grid_action') return;
-        const node = params.api.getDisplayedRowAtIndex(0);
-        if (node && !node.rowPinned) node.setDataValue('_grid_action', 'add_row');
-    }
-    """)
-    options['pinnedBottomRowData'] = [{**{key: '' for key in display.columns},
-                                      '_grid_action': '＋'}]
+    for definition in options['columnDefs']:
+        if definition['field'] not in ('_grid_action', '_row_id', CREATED, UPDATED, ROW_COLOR):
+            definition['headerComponent'] = header_js
+    options['onCellClicked'] = cell_click_js
     options['onCellContextMenu'] = palette_js
     options['getRowStyle'] = row_style_js
     options['getRowId'] = JsCode("function(p) {return String(p.data._row_id);}")
+    options['getRowHeight'] = JsCode(
+        "function(p) {return p.data && p.data._row_id === -1 ? 1 : 32;}"
+    )
     options['suppressContextMenu'] = True
     options['suppressBrowserContextMenu'] = True
-    options['suppressMenuHide'] = True
     options['rowSelection'] = 'single'
-    options['getRowStyle'] = row_style_js
+    options['pinnedBottomRowData'] = [
+        {**{column: '' for column in display.columns},
+         '_row_id': -2, '_grid_action': '＋ Нов ред'}
+    ]
     response = AgGrid(
-        display, gridOptions=options, key=f"cards_grid_{selected}_{st.session_state.cards_version}",
+        display, gridOptions=options,
+        key=f"cards_grid_{selected}_{st.session_state.cards_version}",
         allow_unsafe_jscode=True, enable_enterprise_modules=False,
         update_mode=GridUpdateMode.VALUE_CHANGED,
         data_return_mode=DataReturnMode.AS_INPUT,
@@ -406,16 +479,12 @@ def render_cards():
             '.ag-cell': {'border-right': '1px solid #bbc8d8 !important',
                          'border-bottom': '1px solid #d4dce7 !important'},
             '.ag-header-cell': {'border-right': '1px solid #8da3ba !important'},
+            '.ag-row-pinned': {'background-color': '#e5f2ff !important',
+                               'border-top': '2px solid #5d9cc7 !important'},
+            '.ag-pinned-right-header': {'border-left': '2px solid #5d9cc7 !important'},
         },
     )
     edited = pd.DataFrame(response['data'])
-    if '_grid_action' in edited.columns:
-        commands = set(edited['_grid_action'].fillna('').astype(str))
-        if 'add_column' in commands or 'add_row' in commands:
-            operation = 'column' if 'add_column' in commands else 'row'
-            st.session_state.cards_pending_action = (operation, selected)
-            st.session_state.cards_version += 1
-            st.rerun()
     # Persist by stable source row id, even when the grid is sorted or filtered.
     changes = 0
     if '_row_id' in edited.columns:
@@ -437,6 +506,59 @@ def render_cards():
                         ZoneInfo('Europe/Sofia')).isoformat(timespec='seconds')
     if changes:
         st.session_state.cards_tables[selected] = whole
+
+    # Grid actions are transported through a dedicated cell so that they reach
+    # Python via the same cellValueChanged event as normal edits.
+    commands = edited['_grid_action'].fillna('').astype(str) if '_grid_action' in edited else []
+    command = next((item for item in commands
+                    if item == 'add_row' or item.startswith(('add_column:', 'delete_column:', 'delete_row:'))), None)
+    if command:
+        error = None
+        if command == 'add_row':
+            now = datetime.now(ZoneInfo("Europe/Sofia")).isoformat(timespec="seconds")
+            record = {column: "" for column in whole.columns}
+            if company in record and len(chosen) == 1:
+                record[company] = chosen[0]
+            record[CREATED], record[UPDATED] = now, now
+            st.session_state.cards_tables[selected] = pd.concat(
+                [whole, pd.DataFrame([record])], ignore_index=True
+            )
+        elif command.startswith('add_column:'):
+            label = unquote(command.split(':', 1)[1]).strip()
+            if not label:
+                error = "Въведи име на колоната."
+            elif len(label) > 100 or label.startswith('_'):
+                error = "Невалидно име на колона."
+            elif label.casefold() in {name.casefold() for name in whole.columns}:
+                error = "Вече съществува колона с това име."
+            else:
+                first_audit = next(
+                    (i for i, col in enumerate(whole.columns)
+                     if col in (CREATED, UPDATED, ROW_COLOR)), len(whole.columns)
+                )
+                whole.insert(first_audit, label, "")
+        elif command.startswith('delete_column:'):
+            label = unquote(command.split(':', 1)[1])
+            if label in (CREATED, UPDATED, ROW_COLOR) or label not in whole.columns:
+                error = "Тази колона не може да се изтрие."
+            else:
+                st.session_state.cards_tables[selected] = whole.drop(columns=[label])
+        elif command.startswith('delete_row:'):
+            try:
+                index = int(command.split(':', 1)[1])
+            except ValueError:
+                index = -1
+            if index in whole.index:
+                st.session_state.cards_tables[selected] = (
+                    whole.drop(index=index).reset_index(drop=True)
+                )
+            else:
+                error = "Редът не е намерен."
+        st.session_state.cards_version += 1
+        if error:
+            st.error(error)
+        else:
+            st.rerun()
 
     st.divider()
     full = workbook_bytes(st.session_state.cards_tables, st.session_state.cards_meta)
