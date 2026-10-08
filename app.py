@@ -465,11 +465,17 @@ with tab_analysis:
             delta_color="off",
         )
 
+    # Daily unit cost allows fair comparison when transported quantities grow:
+    # total daily cost alone mixes activity volume with changes in the cost rate.
+    daily["разход_1000л"] = (
+        daily["разход"].div(daily["литри"].where(daily["литри"].gt(0))) * 1000
+    )
     metric_options = {
         "Превозени литри": ("литри", "л", "#4596df"),
         "Брой курсове": ("курсове", "курса", "#258d80"),
         "Пробег": ("километри", "км", "#8169c6"),
         "Транспортни разходи": ("разход", "€", "#cc903f"),
+        "Разход / 1 000 л": ("разход_1000л", "€/1 000 л", "#bd79bf"),
     }
     metric_name = st.segmented_control(
         "Показател на графиката",
@@ -486,10 +492,97 @@ with tab_analysis:
         "Брой курсове": "Брой изпълнени курсове за всеки ден.",
         "Пробег": "Общ пробег в километри за всеки ден.",
         "Транспортни разходи": "Общи транспортни разходи в евро за всеки ден.",
+        "Разход / 1 000 л": (
+            "Транспортен разход за 1 000 превозени литра. "
+            "Показателят отделя промяната в разхода от нарастването на превозените количества."
+        ),
     }
     st.caption(metric_explanations[metric_name] + " Показани са само курсовете, включени в текущите филтри.")
 
     metric_field, metric_unit, bar_color = metric_options[metric_name]
+
+    average_windows = {
+        "1 ден": 1, "7 дни": 7, "14 дни": 14, "30 дни": 30, "90 дни": 90
+    }
+    average_label = st.segmented_control(
+        "🔴 Период на червената линия (плъзгаща се средна)",
+        options=list(average_windows),
+        default="7 дни",
+        selection_mode="single",
+        key="transport_average_window",
+        width="stretch",
+        help=(
+            "За всеки ден използва само предходните N календарни дни, включително текущия. "
+            "Няма обща средна за целия отчетен период. "
+            "1 ден показва дневната стойност без изглаждане."
+        ),
+    ) or "7 дни"
+    average_days = average_windows[average_label]
+
+    # The moving window needs history before the visible report start.
+    # Use exactly the SAME active filter selections as the daily bars,
+    # and don't fabricate activity before the first known data date.
+    chart_start = pd.Timestamp(start_date)
+    chart_end = pd.Timestamp(end_date)
+    history_start = max(
+        pd.Timestamp(min_date),
+        chart_start - pd.Timedelta(days=average_days - 1),
+    )
+    history_rows = transport_df.loc[
+        transport_df["КУРС_ДАТА"].ge(history_start)
+        & transport_df["КУРС_ДАТА"].lt(chart_end + pd.Timedelta(days=1))
+    ].copy()
+    for field, _, _ in filter_fields:
+        selected_values = st.session_state.get(f"filter_{field}", [])
+        if selected_values:
+            history_rows = history_rows.loc[history_rows[field].isin(selected_values)]
+
+    days = pd.date_range(history_start, chart_end, freq="D")
+    history_daily = (
+        history_rows.assign(Дата=history_rows["КУРС_ДАТА"].dt.normalize())
+        .groupby("Дата")
+        .agg(
+            литри=("Л", "sum"),
+            курсове=("КУРС_ДАТА", "size"),
+            километри=("КМ", "sum"),
+            разход=("€_ЦЕНА_ОБЩО", "sum"),
+        )
+        .reindex(days, fill_value=0)
+    )
+    # Calendar days without courses count as 0 in daily totals. An
+    # incomplete N-day window stays unavailable instead of treating unknown
+    # days before the dataset starts as zero.
+    windowed = history_daily.rolling(window=average_days, min_periods=average_days)
+    if metric_field == "разход_1000л":
+        # Weighted rate: sum(cost) / sum(liters), NEVER the simple average
+        # of the daily rates (days can have very different volumes).
+        cost_sum = history_daily["разход"].rolling(
+            window=average_days, min_periods=average_days
+        ).sum()
+        liters_sum = history_daily["литри"].rolling(
+            window=average_days, min_periods=average_days
+        ).sum()
+        moving_average = cost_sum.div(liters_sum.where(liters_sum.gt(0))) * 1000
+    else:
+        moving_average = history_daily[metric_field].rolling(
+            window=average_days, min_periods=average_days
+        ).mean()
+    moving_average = moving_average.loc[chart_start:chart_end]
+    if average_days == 1:
+        st.caption("🔴 1 ден: линията показва дневните стойности без изглаждане.")
+    else:
+        st.caption(
+            f"🔴 Червената линия е плъзгаща се средна за последните "
+            f"{average_days} календарни дни — преизчислява се за всеки ден, "
+            "включително дни без курсове (0 за дневните обеми и суми). "
+            "Използва и наличните дни преди началото на избрания отчетен период."
+        )
+    if metric_field == "разход_1000л":
+        st.caption(
+            "При разход / 1 000 л червената линия е претеглена по литри: "
+            "общите транспортни разходи за прозореца ÷ общите превозени литри × 1 000. "
+            "Това не е цена на гориво."
+        )
 
     fig = go.Figure()
     fig.add_bar(
@@ -508,6 +601,24 @@ with tab_analysis:
             "<extra></extra>"
         ),
     )
+    if moving_average.notna().any():
+        fig.add_trace(go.Scatter(
+            x=moving_average.index,
+            y=moving_average.to_numpy(),
+            mode="lines",
+            name=f"Средно · {average_label}",
+            line=dict(color="#ff4545", width=3),
+            hovertemplate=(
+                f"<b>%{{x|%d.%m.%Y}}</b><br>"
+                f"Плъзгаща средна ({average_label}): "
+                f"%{{y:,.2f}} {metric_unit}<extra></extra>"
+            ),
+        ))
+    else:
+        st.info(
+            f"Няма достатъчно исторически дни за средна от {average_days} дни. "
+            "Избери по-кратък прозорец, за да се появи червената линия."
+        )
     fig.update_layout(
         dragmode="pan",
         template="plotly_dark",
@@ -516,7 +627,9 @@ with tab_analysis:
         paper_bgcolor="#000000",
         plot_bgcolor="#000000",
         font=dict(family="Arial, sans-serif", color="#f0f5ff", size=12),
-        showlegend=False,
+        showlegend=True,
+        legend=dict(orientation="h", x=0.01, y=1.12, xanchor="left", yanchor="bottom",
+                    font=dict(color="#ff7777", size=12)),
         bargap=0.12,
         hoverlabel=dict(bgcolor="#172c45", font_color="#ffffff"),
         xaxis=dict(
@@ -544,9 +657,16 @@ with tab_analysis:
     st.caption(
         f"За периода има {active_days} дни с курсове от общо "
         f"{(end_date - start_date).days + 1} календарни дни. "
-        "Дните без курсове остават без колона; това не означава липсващи данни."
+        "Дните без курсове остават без колона, но участват с нулева "
+        "стойност в плъзгащата средна за дневни суми."
     )
     with st.expander("ℹ️ Как да четете графиката?"):
+        st.caption(
+            "Червената линия показва средната стойност за избрания брой "
+            "последователни календарни дни към всяка дата. "
+            "Тя не е средна за целия избран период. "
+            "За разход / 1 000 л използваме претеглено съотношение."
+        )
         st.markdown(
             "- **Всяка колона** показва сумата за избраната дата и показател.\\n"
             "- **Посочете колона с мишката**, за да видите литри, брой курсове, километри и разходи.\\n"
