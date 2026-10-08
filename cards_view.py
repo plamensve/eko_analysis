@@ -232,7 +232,7 @@ def render_cards():
                 confirm_restore = st.checkbox(
                     "Потвърждавам, че искам да заменя текущите данни "
                     "с първоначално импортираните.",
-                        key=f"cards_restore_confirm_{st.session_state.cards_restore_form_version}",
+                    key=f"cards_restore_confirm_{st.session_state.cards_restore_form_version}",
                 )
                 restore_clicked = st.form_submit_button(
                     "↺ Възстанови оригиналните данни",
@@ -289,8 +289,8 @@ def render_cards():
                                 f"{len(chosen_sheets)} лист(а) от първоначалния импорт."
                             )
                             st.session_state.cards_restore_open = False
-                        st.session_state.cards_restore_form_version += 1
-                        st.rerun()
+                            st.session_state.cards_restore_form_version += 1
+                            st.rerun()
 
     notice = st.session_state.pop("cards_restore_notice", None)
     if notice:
