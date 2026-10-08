@@ -6,6 +6,7 @@ Never commit the workbook or a secrets file containing card PINs to public Git.
 """
 import base64
 import hashlib
+import re
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -114,7 +115,7 @@ def workbook_bytes(tables, meta):
             sheet = writer.sheets[name]
             if ROW_COLOR in frame.columns:
                 for row_num, color in enumerate(frame[ROW_COLOR].tolist(), start=startrow + 2):
-                    if color in COLORS.values() and color:
+                    if isinstance(color, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", color):
                         fill = PatternFill(fill_type="solid", fgColor=color.lstrip("#"))
                         for cell in sheet[row_num]:
                             cell.fill = fill
@@ -273,73 +274,88 @@ def render_cards():
     function(params) {
         if (!params || !params.node || !params.node.data) return;
         const ev = params.event;
-        if (ev && ev.preventDefault) ev.preventDefault();
+        if (ev) { ev.preventDefault(); ev.stopPropagation(); }
         document.querySelectorAll('.cards-row-context').forEach(x => x.remove());
-        const palette = [
-            ['Без цвят',''],['Червено','#FFD1D1'],['Оранжево','#FFE0B2'],
-            ['Жълто','#FFF2A8'],['Зелено','#C9F2CD'],['Синьо','#CFE5FF'],
-            ['Лилаво','#E4D5FF'],['Розово','#FFD4EC'],['Тюркоазено','#BDF1EF'],
-            ['Кафяво','#E2C9B2'],['Сиво','#DADFE5'],['Черно','#202A37'],
-            ['Бяло','#FFFFFF']
-        ];
+        const shades = ['#FFFFFF','#F3F4F6','#D1D5DB','#9CA3AF','#6B7280','#374151','#111827',
+            '#FEE2E2','#FCA5A5','#EF4444','#B91C1C','#7F1D1D',
+            '#FFEDD5','#FDBA74','#F97316','#C2410C',
+            '#FEF9C3','#FDE047','#EAB308','#A16207',
+            '#DCFCE7','#86EFAC','#22C55E','#15803D',
+            '#CCFBF1','#5EEAD4','#14B8A6','#0F766E',
+            '#CFFAFE','#67E8F9','#06B6D4','#0E7490',
+            '#DBEAFE','#93C5FD','#3B82F6','#1D4ED8',
+            '#E0E7FF','#A5B4FC','#6366F1','#4338CA',
+            '#F3E8FF','#D8B4FE','#A855F7','#7E22CE',
+            '#FCE7F3','#F9A8D4','#EC4899','#BE185D',
+            '#F5E8D7','#D6B89D','#A16207','#713F12'];
         const menu = document.createElement('div');
         menu.className = 'cards-row-context';
         menu.style.cssText = 'position:fixed;z-index:2147483600;background:#102438;' +
             'color:#fff;border:1px solid #47647f;box-shadow:0 12px 30px #0008;' +
-            'padding:12px;border-radius:12px;min-width:240px;max-width:270px;';
+            'padding:12px;border-radius:12px;width:296px;box-sizing:border-box;';
         const title = document.createElement('div');
         title.textContent = '🎨 Оцветяване на реда';
         title.style.cssText = 'font-size:13px;font-weight:700;margin-bottom:9px;';
         menu.appendChild(title);
+        function applyColor(hex) {
+            params.node.setDataValue('Цвят на реда', hex);
+            params.api.redrawRows({rowNodes:[params.node]});
+            menu.remove();
+        }
         const paletteBox = document.createElement('div');
-        paletteBox.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:7px;';
-        palette.forEach(([name,hex]) => {
+        paletteBox.style.cssText = 'display:grid;grid-template-columns:repeat(8,1fr);gap:5px;';
+        shades.forEach(hex => {
             const option = document.createElement('button');
-            option.type = 'button';
-            option.title = name;
-            option.setAttribute('aria-label', name);
-            option.style.cssText = 'width:44px;height:34px;border-radius:7px;cursor:pointer;' +
-                'border:1px solid #6984a0;background:' + (hex || '#132f46') +
-                ';color:' + (hex === '#202A37' || !hex ? '#fff' : '#17233b') + ';';
-            option.textContent = hex ? '●' : '×';
-            option.onclick = (e) => {
-                e.stopPropagation();
-                const timestamp = new Date().toISOString();
-                params.node.setDataValue('Цвят на реда', hex);
-                params.node.setDataValue('Последна промяна', timestamp);
-                params.api.refreshCells({rowNodes:[params.node],force:true});
-                menu.remove();
-            };
+            option.type = 'button'; option.title = hex;
+            option.setAttribute('aria-label', 'Цвят ' + hex);
+            option.style.cssText = 'height:25px;border-radius:5px;cursor:pointer;' +
+                'border:1px solid #8294a8;background:' + hex + ';';
+            option.onclick = event => {event.stopPropagation();applyColor(hex);};
             paletteBox.appendChild(option);
         });
         menu.appendChild(paletteBox);
-        const note = document.createElement('div');
-        note.textContent = 'Посочи квадратче, за да видиш цвета.';
-        note.style.cssText = 'font-size:11px;color:#c9d9eb;margin-top:9px;';
-        menu.appendChild(note);
+        const bar = document.createElement('div');
+        bar.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:12px;';
+        const picker = document.createElement('input');
+        picker.type = 'color';picker.value = '#FDE047';
+        picker.title = 'Избери произволен цвят';
+        picker.style.cssText = 'width:50px;height:32px;cursor:pointer;';
+        picker.onchange = event => {event.stopPropagation();applyColor(picker.value);};
+        const pickLabel = document.createElement('span');
+        pickLabel.textContent = 'Всички цветове';
+        pickLabel.style.cssText = 'font-size:12px;flex:1;';
+        const clear = document.createElement('button');
+        clear.type = 'button';clear.textContent = 'Без цвят';
+        clear.style.cssText = 'padding:7px;border:1px solid #607d99;border-radius:6px;' +
+            'background:#24435e;color:white;cursor:pointer;';
+        clear.onclick = event => {event.stopPropagation();applyColor('');};
+        bar.appendChild(picker);bar.appendChild(pickLabel);bar.appendChild(clear);
+        menu.appendChild(bar);
         document.body.appendChild(menu);
         const x = ev && ev.clientX !== undefined ? ev.clientX : 30;
         const y = ev && ev.clientY !== undefined ? ev.clientY : 30;
-        menu.style.left = Math.max(5, Math.min(x, innerWidth - menu.offsetWidth - 8)) + 'px';
-        menu.style.top = Math.max(5, Math.min(y, innerHeight - menu.offsetHeight - 8)) + 'px';
-        const close = (event) => {
+        menu.style.left = Math.max(5,Math.min(x,innerWidth-menu.offsetWidth-8))+'px';
+        menu.style.top = Math.max(5,Math.min(y,innerHeight-menu.offsetHeight-8))+'px';
+        function close(event) {
             if (!menu.contains(event.target)) {
-                menu.remove();
-                document.removeEventListener('pointerdown', close, true);
+                menu.remove();document.removeEventListener('pointerdown',close,true);
+                document.removeEventListener('contextmenu',blockOutside,true);
             }
-        };
-        setTimeout(() => document.addEventListener('pointerdown', close, true), 0);
+        }
+        function blockOutside(event) {event.preventDefault();close(event);}
+        setTimeout(() => {
+            document.addEventListener('pointerdown',close,true);
+            document.addEventListener('contextmenu',blockOutside,true);
+        },0);
     }
     """)
     row_style_js = JsCode("""
     function(params) {
         const color = (params.data && params.data['Цвят на реда']) || '';
-        const allowed = ['#FFD1D1','#FFE0B2','#FFF2A8','#C9F2CD','#CFE5FF',
-                         '#E4D5FF','#FFD4EC','#BDF1EF','#E2C9B2','#DADFE5',
-                         '#202A37','#FFFFFF'];
-        if (allowed.includes(color)) {
-            return {backgroundColor:color,
-                    color: color === '#202A37' ? '#FFFFFF' : '#17233b'};
+        if (/^#[0-9a-fA-F]{6}$/.test(color)) {
+            const r = parseInt(color.slice(1,3),16),g=parseInt(color.slice(3,5),16),
+                b=parseInt(color.slice(5,7),16);
+            return {backgroundColor:color, color:(r*299+g*587+b*114)/1000 < 140 ? '#FFFFFF':'#15243B'};
         }
         return undefined;
     }
@@ -356,6 +372,10 @@ def render_cards():
     options['getRowStyle'] = row_style_js
     options['getRowId'] = JsCode("function(p) {return String(p.data._row_id);}")
     options['suppressContextMenu'] = True
+    options['suppressBrowserContextMenu'] = True
+    options['suppressMenuHide'] = True
+    options['rowSelection'] = 'single'
+    options['getRowStyle'] = row_style_js
     response = AgGrid(
         display, gridOptions=options, key=f"cards_grid_{selected}_{st.session_state.cards_version}",
         allow_unsafe_jscode=True, enable_enterprise_modules=False,
@@ -363,6 +383,11 @@ def render_cards():
         data_return_mode=DataReturnMode.AS_INPUT,
         try_to_convert_back_to_original_types=False,
         height=550, theme='streamlit',
+        custom_css={
+            '.ag-cell': {'border-right': '1px solid #bbc8d8 !important',
+                         'border-bottom': '1px solid #d4dce7 !important'},
+            '.ag-header-cell': {'border-right': '1px solid #8da3ba !important'},
+        },
     )
     edited = pd.DataFrame(response['data'])
     # Persist by stable source row id, even when the grid is sorted or filtered.
@@ -387,6 +412,7 @@ def render_cards():
     if changes:
         st.session_state.cards_tables[selected] = whole
 
+    editable_cols = [c for c in whole.columns if c not in (CREATED, UPDATED, ROW_COLOR)]
     with st.expander("➕ Добави нов ред"):
         st.caption("Новият ред се добавя към избрания лист.")
         with st.form(f"cards_add_{selected}"):
