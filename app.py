@@ -64,6 +64,20 @@ st.markdown("""
     background:linear-gradient(120deg,#20405b,#30617b);border-color:#85b5d1;}
 [data-testid="stSidebar"] hr {border-color:#30445a;}
 h1, h2, h3 {color: #17233b; letter-spacing: -0.025em;}
+.st-key-transport_filters {background:linear-gradient(120deg,#07101d,#132c40);
+    border:1px solid #35506b !important;border-radius:16px;padding:18px 22px;}
+.st-key-transport_filters [data-testid="stMarkdownContainer"] p,
+.st-key-transport_filters [data-testid="stMarkdownContainer"] h3,
+.st-key-transport_filters [data-testid="stWidgetLabel"] p {color:#edf4fc;}
+.st-key-transport_filters [data-testid="stCaptionContainer"] p {color:#afc2d5;}
+.st-key-transport_filters [data-baseweb="select"] > div {
+    background:#0d1d2e;border-color:#35506b;border-radius:10px;}
+.st-key-transport_filters [data-baseweb="select"] * {color:#edf4fc;}
+.st-key-transport_filters [data-baseweb="tag"] {background:#22435f;}
+.st-key-transport_filters button {background:#22435f;border-color:#446d88;color:#ffffff;}
+.st-key-transport_filters button p {color:#ffffff !important;}
+.st-key-transport_filters hr {border-color:#30445a;}
+
 .hero {position:relative;overflow:hidden;background:linear-gradient(112deg,#10243f 0%,#173f63 61%,#23627e 100%);
        border:1px solid rgba(255,255,255,.16);border-radius:22px;padding:32px 38px;
        margin-bottom:24px;box-shadow:0 16px 36px rgba(15,42,69,.15);}
@@ -192,9 +206,9 @@ tdf = transport_df.loc[
 
 # Explicit filter controls: users can see their selection, search values, and reset.
 # Cascading options reflect selections made above without dropping missing labels.
-with st.sidebar:
+with st.container(key="transport_filters", border=True):
     st.markdown("### 🔎 Прецизирай резултатите")
-    st.caption("По подразбиране се показват всички курсове. Избери конкретни стойности, за да стесниш резултатите.")
+    st.caption("Без избор = всички. По подразбиране е избран търговец Vesela Nikolova.")
     if st.button("↺ Покажи всички", use_container_width=True, help="Изчиства ограниченията по търговец, превозвач, шофьор и влекач."):
         for key in ("ТЪРГОВЕЦ", "ПРЕВОЗВАЧ", "ШОФЬОР", "ВЛЕКАЧ"):
             st.session_state[f"filter_{key}"] = []
@@ -212,25 +226,27 @@ with st.sidebar:
         ("ВЛЕКАЧ", "Влекач", "Кой влекач е използван за курса?"),
     ]
     active_filters = 0
-    for field, label, explanation in filter_fields:
+    filter_columns = st.columns(4)
+    for filter_column, (field, label, explanation) in zip(filter_columns, filter_fields):
         options = sorted(tdf[field].dropna().unique().tolist())
         key = f"filter_{field}"
         # An empty selection means All, even if cascading options change.
         saved = st.session_state.get(key, [])
         st.session_state[key] = [value for value in saved if value in options]
-        selected = st.multiselect(
-            label,
-            options,
-            key=key,
-            placeholder=f"Всички ({len(options)}) — избери за филтриране",
-            help=explanation + " Можеш да търсиш чрез писане. Без избор = всички.",
-        )
-        if selected:
-            tdf = tdf.loc[tdf[field].isin(selected)]
-            active_filters += 1
-            st.caption(f"✓ Избрани: {len(selected)} от {len(options)}")
-        else:
-            st.caption(f"Всички {len(options)} стойности са включени")
+        with filter_column:
+            selected = st.multiselect(
+                label,
+                options,
+                key=key,
+                placeholder=f"Всички ({len(options)}) — избери за филтриране",
+                help=explanation + " Можеш да търсиш чрез писане. Без избор = всички.",
+            )
+            if selected:
+                tdf = tdf.loc[tdf[field].isin(selected)]
+                active_filters += 1
+                st.caption(f"✓ Избрани: {len(selected)} от {len(options)}")
+            else:
+                st.caption(f"Всички {len(options)} стойности са включени")
     st.divider()
     st.caption(f"Активни филтри: {active_filters} от 4 · Намерени курсове: {len(tdf):,}")
 
@@ -445,7 +461,7 @@ with st.expander("ℹ️ Как да четете графиката?"):
         "- **Всяка колона** показва сумата за избраната дата и показател.\\n"
         "- **Посочете колона с мишката**, за да видите литри, брой курсове, километри и разходи.\\n"
         "- **Сменете показателя** над графиката, за да сравните натоварване и разходи.\\n"
-        "- **Филтрите отляво** влияят едновременно върху графиката, картите и таблицата.\\n"
+        "- **Филтрите над показателите** влияят едновременно върху графиката, картите и таблицата.\\n"
         "- **Активен ден** означава ден с поне един курс за текущите филтри."
     )
 
