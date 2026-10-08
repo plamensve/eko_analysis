@@ -131,379 +131,387 @@ h1, h2, h3 {color: #17233b; letter-spacing: -0.025em;}
 </style>
 """, unsafe_allow_html=True)
 
-# Transport data is the only data source. The course date (not its update date)
-# determines the reporting period, including courses edited in later months.
-transport_df = pd.read_csv("transport/transport_data.csv")
-transport_df.columns = transport_df.columns.str.strip()
-transport_df["КУРС_ДАТА"] = pd.to_datetime(transport_df["КУРС_ДАТА"], errors="coerce")
-for field in ["КМ", "Л", "ЛИТРИ_1", "ЛИТРИ_2", "€_ЦЕНА_ОБЩО"]:
-    transport_df[field] = pd.to_numeric(transport_df[field], errors="coerce")
+# Main navigation lives below the global theme, above both page contents.
+tab_analysis, tab_cards = st.tabs(["📊 Транспортен анализ", "💳 Списък фирми и карти"])
 
-for field, missing_label in [
-    ("ТЪРГОВЕЦ", "НЯМА ТЪРГОВЕЦ"),
-    ("ПРЕВОЗВАЧ", "НЯМА ПРЕВОЗВАЧ"),
-    ("ШОФЬОР", "НЯМА ШОФЬОР"),
-    ("ВЛЕКАЧ", "НЯМА ВЛЕКАЧ"),
-]:
-    transport_df[field] = transport_df[field].fillna("").astype(str).str.strip()
-    transport_df.loc[transport_df[field] == "", field] = missing_label
+with tab_analysis:
+    # Transport data is the only data source. The course date (not its update date)
+    # determines the reporting period, including courses edited in later months.
+    transport_df = pd.read_csv("transport/transport_data.csv")
+    transport_df.columns = transport_df.columns.str.strip()
+    transport_df["КУРС_ДАТА"] = pd.to_datetime(transport_df["КУРС_ДАТА"], errors="coerce")
+    for field in ["КМ", "Л", "ЛИТРИ_1", "ЛИТРИ_2", "€_ЦЕНА_ОБЩО"]:
+        transport_df[field] = pd.to_numeric(transport_df[field], errors="coerce")
 
-def safe_ratio(numerator, denominator):
-    return numerator.div(denominator.where(denominator.ne(0)))
+    for field, missing_label in [
+        ("ТЪРГОВЕЦ", "НЯМА ТЪРГОВЕЦ"),
+        ("ПРЕВОЗВАЧ", "НЯМА ПРЕВОЗВАЧ"),
+        ("ШОФЬОР", "НЯМА ШОФЬОР"),
+        ("ВЛЕКАЧ", "НЯМА ВЛЕКАЧ"),
+    ]:
+        transport_df[field] = transport_df[field].fillna("").astype(str).str.strip()
+        transport_df.loc[transport_df[field] == "", field] = missing_label
 
-transport_df["€/км"] = safe_ratio(transport_df["€_ЦЕНА_ОБЩО"], transport_df["КМ"])
-transport_df["л/км"] = safe_ratio(transport_df["Л"], transport_df["КМ"])
-transport_df["€/л"] = safe_ratio(transport_df["€_ЦЕНА_ОБЩО"], transport_df["Л"])
+    def safe_ratio(numerator, denominator):
+        return numerator.div(denominator.where(denominator.ne(0)))
 
-st.markdown("""
-<section class="hero" aria-label="Транспортен анализ">
-  <div class="hero-top"><span class="hero-mark">↗</span> OPERATIONS OVERVIEW <span style="opacity:.45">/</span> ТРАНСПОРТ</div>
-  <h1>Транспортен анализ</h1>
-  <p>Централизирана информация за курсовете, превозените количества, пробега и транспортните разходи.</p>
-  <div class="hero-footer">
-    <span class="hero-chip">◉ Актуални данни от курсовете</span>
-    <span class="hero-chip">↗ Анализ по избран период</span>
-  </div>
-</section>
-""", unsafe_allow_html=True)
+    transport_df["€/км"] = safe_ratio(transport_df["€_ЦЕНА_ОБЩО"], transport_df["КМ"])
+    transport_df["л/км"] = safe_ratio(transport_df["Л"], transport_df["КМ"])
+    transport_df["€/л"] = safe_ratio(transport_df["€_ЦЕНА_ОБЩО"], transport_df["Л"])
 
-valid_dates = transport_df["КУРС_ДАТА"].dropna()
-if valid_dates.empty:
-    st.error("Няма валидни дати на курсове в транспортния файл.")
-    st.stop()
+    st.markdown("""
+    <section class="hero" aria-label="Транспортен анализ">
+      <div class="hero-top"><span class="hero-mark">↗</span> OPERATIONS OVERVIEW <span style="opacity:.45">/</span> ТРАНСПОРТ</div>
+      <h1>Транспортен анализ</h1>
+      <p>Централизирана информация за курсовете, превозените количества, пробега и транспортните разходи.</p>
+      <div class="hero-footer">
+        <span class="hero-chip">◉ Актуални данни от курсовете</span>
+        <span class="hero-chip">↗ Анализ по избран период</span>
+      </div>
+    </section>
+    """, unsafe_allow_html=True)
 
-min_date, max_date = valid_dates.min().date(), valid_dates.max().date()
-with st.sidebar:
-    st.header("⚙️ Филтри")
-    start_date = st.date_input("От дата", value=min_date, min_value=min_date, max_value=max_date)
-    end_date = st.date_input("До дата", value=max_date, min_value=min_date, max_value=max_date)
-    st.caption("Отчетът използва датата на курса, независимо кога записът е редактиран.")
+    valid_dates = transport_df["КУРС_ДАТА"].dropna()
+    if valid_dates.empty:
+        st.error("Няма валидни дати на курсове в транспортния файл.")
+        st.stop()
 
-if start_date > end_date:
-    st.warning("Началната дата трябва да е преди крайната.")
-    st.stop()
+    min_date, max_date = valid_dates.min().date(), valid_dates.max().date()
+    with st.sidebar:
+        st.header("⚙️ Филтри")
+        start_date = st.date_input("От дата", value=min_date, min_value=min_date, max_value=max_date)
+        end_date = st.date_input("До дата", value=max_date, min_value=min_date, max_value=max_date)
+        st.caption("Отчетът използва датата на курса, независимо кога записът е редактиран.")
 
-# Exclusive next-day bound keeps every course on the chosen end date,
-# including timestamps after midnight.
-tdf = transport_df.loc[
-    (transport_df["КУРС_ДАТА"] >= pd.Timestamp(start_date)) &
-    (transport_df["КУРС_ДАТА"] < pd.Timestamp(end_date) + pd.Timedelta(days=1))
-].copy()
+    if start_date > end_date:
+        st.warning("Началната дата трябва да е преди крайната.")
+        st.stop()
 
-# Explicit filter controls: users can see their selection, search values, and reset.
-# Cascading options reflect selections made above without dropping missing labels.
-with st.sidebar:
-    st.markdown("### 🔎 Прецизирай резултатите")
-    st.caption("Без избор = всички. По подразбиране е избран търговец Vesela Nikolova.")
-    if st.button("↺ Покажи всички", use_container_width=True, help="Изчиства ограниченията по търговец, превозвач, шофьор и влекач."):
-        for key in ("ТЪРГОВЕЦ", "ПРЕВОЗВАЧ", "ШОФЬОР", "ВЛЕКАЧ"):
-            st.session_state[f"filter_{key}"] = []
-        st.rerun()
+    # Exclusive next-day bound keeps every course on the chosen end date,
+    # including timestamps after midnight.
+    tdf = transport_df.loc[
+        (transport_df["КУРС_ДАТА"] >= pd.Timestamp(start_date)) &
+        (transport_df["КУРС_ДАТА"] < pd.Timestamp(end_date) + pd.Timedelta(days=1))
+    ].copy()
 
-    # Only initialize on the first load: later user selections and "Покажи всички"
-    # remain authoritative, including an intentionally empty (all) selection.
-    if "filter_ТЪРГОВЕЦ" not in st.session_state:
-        st.session_state["filter_ТЪРГОВЕЦ"] = ["Vesela Nikolova"]
+    # Explicit filter controls: users can see their selection, search values, and reset.
+    # Cascading options reflect selections made above without dropping missing labels.
+    with st.sidebar:
+        st.markdown("### 🔎 Прецизирай резултатите")
+        st.caption("Без избор = всички. По подразбиране е избран търговец Vesela Nikolova.")
+        if st.button("↺ Покажи всички", use_container_width=True, help="Изчиства ограниченията по търговец, превозвач, шофьор и влекач."):
+            for key in ("ТЪРГОВЕЦ", "ПРЕВОЗВАЧ", "ШОФЬОР", "ВЛЕКАЧ"):
+                st.session_state[f"filter_{key}"] = []
+            st.rerun()
 
-    filter_fields = [
-        ("ТЪРГОВЕЦ", "Търговец", "Кой търговец е организирал курса?"),
-        ("ПРЕВОЗВАЧ", "Превозвач", "Коя транспортна фирма е изпълнила курса?"),
-        ("ШОФЬОР", "Шофьор", "Кой е управлявал превозното средство?"),
-        ("ВЛЕКАЧ", "Влекач", "Кой влекач е използван за курса?"),
-    ]
-    active_filters = 0
-    for field, label, explanation in filter_fields:
-        options = sorted(tdf[field].dropna().unique().tolist())
-        key = f"filter_{field}"
-        # An empty selection means All, even if cascading options change.
-        saved = st.session_state.get(key, [])
-        st.session_state[key] = [value for value in saved if value in options]
-        selected = st.multiselect(
-            label,
-            options,
-            key=key,
-            placeholder=f"Всички ({len(options)}) — избери за филтриране",
-            help=explanation + " Можеш да търсиш чрез писане. Без избор = всички.",
+        # Only initialize on the first load: later user selections and "Покажи всички"
+        # remain authoritative, including an intentionally empty (all) selection.
+        if "filter_ТЪРГОВЕЦ" not in st.session_state:
+            st.session_state["filter_ТЪРГОВЕЦ"] = ["Vesela Nikolova"]
+
+        filter_fields = [
+            ("ТЪРГОВЕЦ", "Търговец", "Кой търговец е организирал курса?"),
+            ("ПРЕВОЗВАЧ", "Превозвач", "Коя транспортна фирма е изпълнила курса?"),
+            ("ШОФЬОР", "Шофьор", "Кой е управлявал превозното средство?"),
+            ("ВЛЕКАЧ", "Влекач", "Кой влекач е използван за курса?"),
+        ]
+        active_filters = 0
+        for field, label, explanation in filter_fields:
+            options = sorted(tdf[field].dropna().unique().tolist())
+            key = f"filter_{field}"
+            # An empty selection means All, even if cascading options change.
+            saved = st.session_state.get(key, [])
+            st.session_state[key] = [value for value in saved if value in options]
+            selected = st.multiselect(
+                label,
+                options,
+                key=key,
+                placeholder=f"Всички ({len(options)}) — избери за филтриране",
+                help=explanation + " Можеш да търсиш чрез писане. Без избор = всички.",
+            )
+            if selected:
+                tdf = tdf.loc[tdf[field].isin(selected)]
+                active_filters += 1
+                st.caption(f"✓ Избрани: {len(selected)} от {len(options)}")
+            else:
+                st.caption(f"Всички {len(options)} стойности са включени")
+        st.divider()
+        st.caption(f"Активни филтри: {active_filters} от 4 · Намерени курсове: {len(tdf):,}")
+
+    def format_number(value, decimals=0):
+        return f"{value:,.{decimals}f}".replace(",", " ")
+
+    def kpi(label, value, unit="", icon="◈", tone="blue"):
+        """Render one accessible KPI tile; tone is controlled by the caller."""
+        st.markdown(
+            f'<div class="kpi {tone}">'
+            f'<div class="kpi-top"><div class="kpi-label">{label}</div>'
+            f'<span class="kpi-icon" aria-hidden="true">{icon}</span></div>'
+            f'<div class="kpi-value">{value}</div>'
+            f'<div class="kpi-unit">{unit}</div></div>',
+            unsafe_allow_html=True,
         )
-        if selected:
-            tdf = tdf.loc[tdf[field].isin(selected)]
-            active_filters += 1
-            st.caption(f"✓ Избрани: {len(selected)} от {len(options)}")
-        else:
-            st.caption(f"Всички {len(options)} стойности са включени")
-    st.divider()
-    st.caption(f"Активни филтри: {active_filters} от 4 · Намерени курсове: {len(tdf):,}")
 
-def format_number(value, decimals=0):
-    return f"{value:,.{decimals}f}".replace(",", " ")
-
-def kpi(label, value, unit="", icon="◈", tone="blue"):
-    """Render one accessible KPI tile; tone is controlled by the caller."""
+    total_liters = tdf["Л"].sum()
+    total_cost = tdf["€_ЦЕНА_ОБЩО"].sum()
+    total_km = tdf["КМ"].sum()
+    count = len(tdf)
     st.markdown(
-        f'<div class="kpi {tone}">'
-        f'<div class="kpi-top"><div class="kpi-label">{label}</div>'
-        f'<span class="kpi-icon" aria-hidden="true">{icon}</span></div>'
-        f'<div class="kpi-value">{value}</div>'
-        f'<div class="kpi-unit">{unit}</div></div>',
+        f'<div class="filter-summary">Период: {start_date:%d.%m.%Y} – {end_date:%d.%m.%Y}'
+        f' &nbsp;•&nbsp; {count} курса</div>',
         unsafe_allow_html=True,
     )
 
-total_liters = tdf["Л"].sum()
-total_cost = tdf["€_ЦЕНА_ОБЩО"].sum()
-total_km = tdf["КМ"].sum()
-count = len(tdf)
-st.markdown(
-    f'<div class="filter-summary">Период: {start_date:%d.%m.%Y} – {end_date:%d.%m.%Y}'
-    f' &nbsp;•&nbsp; {count} курса</div>',
-    unsafe_allow_html=True,
-)
+    st.markdown('<div class="section-head">Ключови показатели</div>', unsafe_allow_html=True)
+    cols = st.columns(4)
+    with cols[0]:
+        kpi("Превозени литри", format_number(total_liters), "литра общо", "◉", "blue")
+    with cols[1]:
+        kpi("Общ пробег / км", format_number(total_km, 1), "километра общо", "↗", "teal")
+    with cols[2]:
+        kpi("Транспортни разходи", format_number(total_cost, 2), "€ общо", "€", "violet")
+    with cols[3]:
+        kpi("Брой курсове", format_number(count), "изпълнени курса", "▤", "amber")
 
-st.markdown('<div class="section-head">Ключови показатели</div>', unsafe_allow_html=True)
-cols = st.columns(4)
-with cols[0]:
-    kpi("Превозени литри", format_number(total_liters), "литра общо", "◉", "blue")
-with cols[1]:
-    kpi("Общ пробег / км", format_number(total_km, 1), "километра общо", "↗", "teal")
-with cols[2]:
-    kpi("Транспортни разходи", format_number(total_cost, 2), "€ общо", "€", "violet")
-with cols[3]:
-    kpi("Брой курсове", format_number(count), "изпълнени курса", "▤", "amber")
+    cols = st.columns(4)
+    with cols[0]:
+        kpi("Средно литри / курс", format_number(total_liters / count, 1) if count else "—", "литра на курс", "◉", "teal")
+    with cols[1]:
+        kpi("Среден разход / курс", format_number(total_cost / count, 2) if count else "—", "€ на курс", "€", "violet")
+    with cols[2]:
+        kpi("Разход / 1 000 л", format_number(total_cost / total_liters * 1000, 2) if total_liters else "—", "€ за 1 000 литра", "↗", "amber")
+    with cols[3]:
+        st.markdown(
+            '<div class="kpi blue">'
+            '<div class="kpi-top"><div class="kpi-label">Допълнителни литри</div>'
+            '<span class="kpi-icon" aria-hidden="true">+</span></div>'
+            '<div class="liters-split">'
+            '<div class="liters-part"><div class="kpi-label">Литри 1</div>'
+            f'<div class="liters-value">{format_number(tdf["ЛИТРИ_1"].sum())}</div>'
+            '<div class="kpi-unit">литра</div></div>'
+            '<div class="liters-part"><div class="kpi-label">Литри 2</div>'
+            f'<div class="liters-value">{format_number(tdf["ЛИТРИ_2"].sum())}</div>'
+            '<div class="kpi-unit">литра</div></div>'
+            '</div></div>',
+            unsafe_allow_html=True,
+        )
 
-cols = st.columns(4)
-with cols[0]:
-    kpi("Средно литри / курс", format_number(total_liters / count, 1) if count else "—", "литра на курс", "◉", "teal")
-with cols[1]:
-    kpi("Среден разход / курс", format_number(total_cost / count, 2) if count else "—", "€ на курс", "€", "violet")
-with cols[2]:
-    kpi("Разход / 1 000 л", format_number(total_cost / total_liters * 1000, 2) if total_liters else "—", "€ за 1 000 литра", "↗", "amber")
-with cols[3]:
+    if tdf.empty:
+        st.info("Няма курсове за избраните филтри.")
+        st.stop()
+
+    # The chart always uses the fully filtered tdf, just like the KPI cards and table.
+    st.markdown('<div class="section-head">Дневна тенденция на транспорта</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="kpi blue">'
-        '<div class="kpi-top"><div class="kpi-label">Допълнителни литри</div>'
-        '<span class="kpi-icon" aria-hidden="true">+</span></div>'
-        '<div class="liters-split">'
-        '<div class="liters-part"><div class="kpi-label">Литри 1</div>'
-        f'<div class="liters-value">{format_number(tdf["ЛИТРИ_1"].sum())}</div>'
-        '<div class="kpi-unit">литра</div></div>'
-        '<div class="liters-part"><div class="kpi-label">Литри 2</div>'
-        f'<div class="liters-value">{format_number(tdf["ЛИТРИ_2"].sum())}</div>'
-        '<div class="kpi-unit">литра</div></div>'
-        '</div></div>',
+        f'<div class="chart-period">📅 Отчетен период: '
+        f'<strong>{start_date:%d.%m.%Y} – {end_date:%d.%m.%Y}</strong></div>',
         unsafe_allow_html=True,
     )
-
-if tdf.empty:
-    st.info("Няма курсове за избраните филтри.")
-    st.stop()
-
-# The chart always uses the fully filtered tdf, just like the KPI cards and table.
-st.markdown('<div class="section-head">Дневна тенденция на транспорта</div>', unsafe_allow_html=True)
-st.markdown(
-    f'<div class="chart-period">📅 Отчетен период: '
-    f'<strong>{start_date:%d.%m.%Y} – {end_date:%d.%m.%Y}</strong></div>',
-    unsafe_allow_html=True,
-)
-st.caption(
-    "Всяка колона представя общите данни за един ден. "
-    "Стойностите се преизчисляват автоматично при промяна на периода, "
-    "търговеца, превозвача, шофьора или влекача."
-)
-
-def chart_filter_summary(field):
-    selection = st.session_state.get(f"filter_{field}", [])
-    if not selection:
-        return "Всички"
-    return selection[0] if len(selection) == 1 else f"{len(selection)} избрани"
-
-filter_descriptions = [
-    ("Период", f"{start_date:%d.%m.%Y} – {end_date:%d.%m.%Y}"),
-    ("Търговец", chart_filter_summary("ТЪРГОВЕЦ")),
-    ("Превозвач", chart_filter_summary("ПРЕВОЗВАЧ")),
-    ("Шофьор", chart_filter_summary("ШОФЬОР")),
-    ("Влекач", chart_filter_summary("ВЛЕКАЧ")),
-]
-chips = "".join(
-    f'<span class="chart-chip"><strong>{escape(label)}:</strong> '
-    f'{escape(value)}</span>'
-    for label, value in filter_descriptions
-)
-st.markdown(f'<div class="chart-filter-context">{chips}</div>', unsafe_allow_html=True)
-
-daily = (
-    tdf.assign(Дата=tdf["КУРС_ДАТА"].dt.normalize())
-    .groupby("Дата", as_index=False)
-    .agg(
-        литри=("Л", "sum"),
-        курсове=("КУРС_ДАТА", "size"),
-        километри=("КМ", "sum"),
-        разход=("€_ЦЕНА_ОБЩО", "sum"),
-    )
-    .sort_values("Дата")
-)
-active_days = len(daily)
-average_liters = total_liters / active_days if active_days else 0
-peak = daily.loc[daily["литри"].idxmax()] if active_days else None
-
-summary_cols = st.columns(4)
-with summary_cols[0]:
-    st.metric("Превозени литри", f"{format_number(total_liters)} л")
-with summary_cols[1]:
-    st.metric("Дни с курсове", format_number(active_days))
-with summary_cols[2]:
-    st.metric("Средно на активен ден", f"{format_number(average_liters)} л")
-with summary_cols[3]:
-    st.metric(
-        "Най-натоварен ден",
-        peak["Дата"].strftime("%d.%m.%Y") if peak is not None else "—",
-        f"{format_number(peak['литри'])} л" if peak is not None else None,
-        delta_color="off",
+    st.caption(
+        "Всяка колона представя общите данни за един ден. "
+        "Стойностите се преизчисляват автоматично при промяна на периода, "
+        "търговеца, превозвача, шофьора или влекача."
     )
 
-metric_options = {
-    "Превозени литри": ("литри", "л", "#4596df"),
-    "Брой курсове": ("курсове", "курса", "#258d80"),
-    "Пробег": ("километри", "км", "#8169c6"),
-    "Транспортни разходи": ("разход", "€", "#cc903f"),
-}
-metric_name = st.segmented_control(
-    "Показател на графиката",
-    list(metric_options),
-    default="Превозени литри",
-    selection_mode="single",
-    key="transport_daily_metric",
-    help="Избери показател. Графиката запазва текущия период и всички активни филтри.",
-    width="stretch",
-)
-metric_name = metric_name or "Превозени литри"
-metric_explanations = {
-    "Превозени литри": "Общо превозени литри за всеки ден.",
-    "Брой курсове": "Брой изпълнени курсове за всеки ден.",
-    "Пробег": "Общ пробег в километри за всеки ден.",
-    "Транспортни разходи": "Общи транспортни разходи в евро за всеки ден.",
-}
-st.caption(metric_explanations[metric_name] + " Показани са само курсовете, включени в текущите филтри.")
+    def chart_filter_summary(field):
+        selection = st.session_state.get(f"filter_{field}", [])
+        if not selection:
+            return "Всички"
+        return selection[0] if len(selection) == 1 else f"{len(selection)} избрани"
 
-metric_field, metric_unit, bar_color = metric_options[metric_name]
+    filter_descriptions = [
+        ("Период", f"{start_date:%d.%m.%Y} – {end_date:%d.%m.%Y}"),
+        ("Търговец", chart_filter_summary("ТЪРГОВЕЦ")),
+        ("Превозвач", chart_filter_summary("ПРЕВОЗВАЧ")),
+        ("Шофьор", chart_filter_summary("ШОФЬОР")),
+        ("Влекач", chart_filter_summary("ВЛЕКАЧ")),
+    ]
+    chips = "".join(
+        f'<span class="chart-chip"><strong>{escape(label)}:</strong> '
+        f'{escape(value)}</span>'
+        for label, value in filter_descriptions
+    )
+    st.markdown(f'<div class="chart-filter-context">{chips}</div>', unsafe_allow_html=True)
 
-fig = go.Figure()
-fig.add_bar(
-    x=daily["Дата"],
-    y=daily[metric_field],
-    marker_color=bar_color,
-    width=0.82 * 24 * 60 * 60 * 1000,  # 82% of one calendar day on a date axis
-    marker_line_width=0,
-    customdata=daily[["литри", "курсове", "километри", "разход"]].to_numpy(),
-    hovertemplate=(
-        "<b>%{x|%d.%m.%Y}</b><br>"
-        "Превозени литри: %{customdata[0]:,.0f} л<br>"
-        "Курсове: %{customdata[1]:,.0f}<br>"
-        "Пробег: %{customdata[2]:,.1f} км<br>"
-        "Транспортни разходи: %{customdata[3]:,.2f} €"
-        "<extra></extra>"
-    ),
-)
-fig.update_layout(
-    dragmode="pan",
-    template="plotly_dark",
-    height=380,
-    margin=dict(l=14, r=20, t=16, b=20),
-    paper_bgcolor="#000000",
-    plot_bgcolor="#000000",
-    font=dict(family="Arial, sans-serif", color="#f0f5ff", size=12),
-    showlegend=False,
-    bargap=0.12,
-    hoverlabel=dict(bgcolor="#172c45", font_color="#ffffff"),
-    xaxis=dict(
-        title=None,
-        type="date",
-        tickformat="%d.%m",
-        tickangle=0,
-        showgrid=False,
-        showline=True,
-        linecolor="#526781",
-        range=[pd.Timestamp(start_date), pd.Timestamp(end_date) + pd.Timedelta(days=1)],
-    ),
-    yaxis=dict(
-        title=f"{metric_name} ({metric_unit})",
-        rangemode="tozero",
-        tickformat=",~s",
-        showgrid=True,
-        gridcolor="#3a3a3a",
-        gridwidth=1,
-        zeroline=False,
-    ),
-)
-st.plotly_chart(fig, use_container_width=True, theme=None, config={"displaylogo": False, "scrollZoom": True})
+    daily = (
+        tdf.assign(Дата=tdf["КУРС_ДАТА"].dt.normalize())
+        .groupby("Дата", as_index=False)
+        .agg(
+            литри=("Л", "sum"),
+            курсове=("КУРС_ДАТА", "size"),
+            километри=("КМ", "sum"),
+            разход=("€_ЦЕНА_ОБЩО", "sum"),
+        )
+        .sort_values("Дата")
+    )
+    active_days = len(daily)
+    average_liters = total_liters / active_days if active_days else 0
+    peak = daily.loc[daily["литри"].idxmax()] if active_days else None
 
-st.caption(
-    f"За периода има {active_days} дни с курсове от общо "
-    f"{(end_date - start_date).days + 1} календарни дни. "
-    "Дните без курсове остават без колона; това не означава липсващи данни."
-)
-with st.expander("ℹ️ Как да четете графиката?"):
-    st.markdown(
-        "- **Всяка колона** показва сумата за избраната дата и показател.\\n"
-        "- **Посочете колона с мишката**, за да видите литри, брой курсове, километри и разходи.\\n"
-        "- **Сменете показателя** над графиката, за да сравните натоварване и разходи.\\n"
-        "- **Филтрите отляво** влияят едновременно върху графиката, картите и таблицата.\\n"
-        "- **Активен ден** означава ден с поне един курс за текущите филтри."
+    summary_cols = st.columns(4)
+    with summary_cols[0]:
+        st.metric("Превозени литри", f"{format_number(total_liters)} л")
+    with summary_cols[1]:
+        st.metric("Дни с курсове", format_number(active_days))
+    with summary_cols[2]:
+        st.metric("Средно на активен ден", f"{format_number(average_liters)} л")
+    with summary_cols[3]:
+        st.metric(
+            "Най-натоварен ден",
+            peak["Дата"].strftime("%d.%m.%Y") if peak is not None else "—",
+            f"{format_number(peak['литри'])} л" if peak is not None else None,
+            delta_color="off",
+        )
+
+    metric_options = {
+        "Превозени литри": ("литри", "л", "#4596df"),
+        "Брой курсове": ("курсове", "курса", "#258d80"),
+        "Пробег": ("километри", "км", "#8169c6"),
+        "Транспортни разходи": ("разход", "€", "#cc903f"),
+    }
+    metric_name = st.segmented_control(
+        "Показател на графиката",
+        list(metric_options),
+        default="Превозени литри",
+        selection_mode="single",
+        key="transport_daily_metric",
+        help="Избери показател. Графиката запазва текущия период и всички активни филтри.",
+        width="stretch",
+    )
+    metric_name = metric_name or "Превозени литри"
+    metric_explanations = {
+        "Превозени литри": "Общо превозени литри за всеки ден.",
+        "Брой курсове": "Брой изпълнени курсове за всеки ден.",
+        "Пробег": "Общ пробег в километри за всеки ден.",
+        "Транспортни разходи": "Общи транспортни разходи в евро за всеки ден.",
+    }
+    st.caption(metric_explanations[metric_name] + " Показани са само курсовете, включени в текущите филтри.")
+
+    metric_field, metric_unit, bar_color = metric_options[metric_name]
+
+    fig = go.Figure()
+    fig.add_bar(
+        x=daily["Дата"],
+        y=daily[metric_field],
+        marker_color=bar_color,
+        width=0.82 * 24 * 60 * 60 * 1000,  # 82% of one calendar day on a date axis
+        marker_line_width=0,
+        customdata=daily[["литри", "курсове", "километри", "разход"]].to_numpy(),
+        hovertemplate=(
+            "<b>%{x|%d.%m.%Y}</b><br>"
+            "Превозени литри: %{customdata[0]:,.0f} л<br>"
+            "Курсове: %{customdata[1]:,.0f}<br>"
+            "Пробег: %{customdata[2]:,.1f} км<br>"
+            "Транспортни разходи: %{customdata[3]:,.2f} €"
+            "<extra></extra>"
+        ),
+    )
+    fig.update_layout(
+        dragmode="pan",
+        template="plotly_dark",
+        height=380,
+        margin=dict(l=14, r=20, t=16, b=20),
+        paper_bgcolor="#000000",
+        plot_bgcolor="#000000",
+        font=dict(family="Arial, sans-serif", color="#f0f5ff", size=12),
+        showlegend=False,
+        bargap=0.12,
+        hoverlabel=dict(bgcolor="#172c45", font_color="#ffffff"),
+        xaxis=dict(
+            title=None,
+            type="date",
+            tickformat="%d.%m",
+            tickangle=0,
+            showgrid=False,
+            showline=True,
+            linecolor="#526781",
+            range=[pd.Timestamp(start_date), pd.Timestamp(end_date) + pd.Timedelta(days=1)],
+        ),
+        yaxis=dict(
+            title=f"{metric_name} ({metric_unit})",
+            rangemode="tozero",
+            tickformat=",~s",
+            showgrid=True,
+            gridcolor="#3a3a3a",
+            gridwidth=1,
+            zeroline=False,
+        ),
+    )
+    st.plotly_chart(fig, use_container_width=True, theme=None, config={"displaylogo": False, "scrollZoom": True})
+
+    st.caption(
+        f"За периода има {active_days} дни с курсове от общо "
+        f"{(end_date - start_date).days + 1} календарни дни. "
+        "Дните без курсове остават без колона; това не означава липсващи данни."
+    )
+    with st.expander("ℹ️ Как да четете графиката?"):
+        st.markdown(
+            "- **Всяка колона** показва сумата за избраната дата и показател.\\n"
+            "- **Посочете колона с мишката**, за да видите литри, брой курсове, километри и разходи.\\n"
+            "- **Сменете показателя** над графиката, за да сравните натоварване и разходи.\\n"
+            "- **Филтрите отляво** влияят едновременно върху графиката, картите и таблицата.\\n"
+            "- **Активен ден** означава ден с поне един курс за текущите филтри."
+        )
+
+    st.markdown('<div class="section-head">Детайли по курсове</div>', unsafe_allow_html=True)
+    preferred = [
+        "КУРС_ДАТА", "ТЪРГОВЕЦ", "ВЪЗЛОЖИТЕЛ", "КУРС", "БРОЙ_ОБЕКТИ",
+        "ПРЕВОЗВАЧ", "ШОФЬОР", "ВЛЕКАЧ", "ЦИСТЕРНА", "КМ", "Л",
+        "€_ЦЕНА_ОБЩО", "€/км", "л/км", "€/л", "ЛИТРИ_1", "ЛИТРИ_2",
+        "ДЕН", "МЕСЕЦ", "ГОДИНА",
+    ]
+    columns = [c for c in preferred if c in tdf.columns]
+    table = tdf[columns].sort_values("КУРС_ДАТА", ascending=False)
+    # Render a scoped dark table so both headers and cells use the same palette.
+    display_table = table.copy()
+    display_table["КУРС_ДАТА"] = display_table["КУРС_ДАТА"].dt.strftime("%d.%m.%Y")
+    st.html(
+        '<style>'
+        '.course-details {max-height:510px;overflow:auto;background:#000000;'
+        'border:1px solid #444444;border-radius:14px;}'
+        '.course-details {scrollbar-width:auto;scrollbar-color:#315b77 #080f1b;'
+        'scrollbar-gutter:stable;}'
+        '.course-details::-webkit-scrollbar {width:18px;height:18px;}'
+        '.course-details::-webkit-scrollbar-track {background:linear-gradient(180deg,#050a12,#102638);border-radius:9px;}'
+        '.course-details::-webkit-scrollbar-thumb {background:linear-gradient(180deg,#315b77,#17364e);border:3px solid #080f1b;'
+        'border-radius:9px;min-height:48px;min-width:48px;}'
+        '.course-details::-webkit-scrollbar-thumb:hover {background:linear-gradient(180deg,#477c9d,#245773);}'
+        '.course-details::-webkit-scrollbar-corner {background:linear-gradient(180deg,#050a12,#102638);}'
+        '.course-details table {width:100%;border-collapse:separate;border-spacing:0;'
+        'font-size:14px;color:#ffffff;}'
+        '.course-details th {position:sticky;top:0;z-index:1;background:linear-gradient(180deg,#050a12,#102638);'
+        'color:#ffffff;text-align:left;font-weight:700;white-space:nowrap;}'
+        '.course-details th,.course-details td {padding:12px 15px;'
+        'border-bottom:1px solid #303030;}'
+        '.course-details td {background:#000000;color:#ffffff;white-space:nowrap;}'
+        '.course-details tbody tr:nth-child(even) td {background:#111111;}'
+        '.course-details tbody tr:hover td {background:#292929;}'
+        '.course-details th {background:linear-gradient(135deg,#070d19 0%,#122b45 55%,#173c4d 100%);font-size:14px;letter-spacing:.02em;'
+        'padding-top:16px;padding-bottom:16px;border-bottom:2px solid #ffffff;}'
+        '.course-details th:not(:last-child) {border-right:1px solid #ffffff;}'
+        '.course-details td:not(:last-child) {border-right:1px solid rgba(255,255,255,.55);}'
+
+        '</style>'
+        '<div class="course-details" role="region" aria-label="Детайли по курсове" tabindex="0">'
+        + display_table.to_html(index=False, escape=True, border=0, na_rep="—")
+        + '</div>'
     )
 
-st.markdown('<div class="section-head">Детайли по курсове</div>', unsafe_allow_html=True)
-preferred = [
-    "КУРС_ДАТА", "ТЪРГОВЕЦ", "ВЪЗЛОЖИТЕЛ", "КУРС", "БРОЙ_ОБЕКТИ",
-    "ПРЕВОЗВАЧ", "ШОФЬОР", "ВЛЕКАЧ", "ЦИСТЕРНА", "КМ", "Л",
-    "€_ЦЕНА_ОБЩО", "€/км", "л/км", "€/л", "ЛИТРИ_1", "ЛИТРИ_2",
-    "ДЕН", "МЕСЕЦ", "ГОДИНА",
-]
-columns = [c for c in preferred if c in tdf.columns]
-table = tdf[columns].sort_values("КУРС_ДАТА", ascending=False)
-# Render a scoped dark table so both headers and cells use the same palette.
-display_table = table.copy()
-display_table["КУРС_ДАТА"] = display_table["КУРС_ДАТА"].dt.strftime("%d.%m.%Y")
-st.html(
-    '<style>'
-    '.course-details {max-height:510px;overflow:auto;background:#000000;'
-    'border:1px solid #444444;border-radius:14px;}'
-    '.course-details {scrollbar-width:auto;scrollbar-color:#315b77 #080f1b;'
-    'scrollbar-gutter:stable;}'
-    '.course-details::-webkit-scrollbar {width:18px;height:18px;}'
-    '.course-details::-webkit-scrollbar-track {background:linear-gradient(180deg,#050a12,#102638);border-radius:9px;}'
-    '.course-details::-webkit-scrollbar-thumb {background:linear-gradient(180deg,#315b77,#17364e);border:3px solid #080f1b;'
-    'border-radius:9px;min-height:48px;min-width:48px;}'
-    '.course-details::-webkit-scrollbar-thumb:hover {background:linear-gradient(180deg,#477c9d,#245773);}'
-    '.course-details::-webkit-scrollbar-corner {background:linear-gradient(180deg,#050a12,#102638);}'
-    '.course-details table {width:100%;border-collapse:separate;border-spacing:0;'
-    'font-size:14px;color:#ffffff;}'
-    '.course-details th {position:sticky;top:0;z-index:1;background:linear-gradient(180deg,#050a12,#102638);'
-    'color:#ffffff;text-align:left;font-weight:700;white-space:nowrap;}'
-    '.course-details th,.course-details td {padding:12px 15px;'
-    'border-bottom:1px solid #303030;}'
-    '.course-details td {background:#000000;color:#ffffff;white-space:nowrap;}'
-    '.course-details tbody tr:nth-child(even) td {background:#111111;}'
-    '.course-details tbody tr:hover td {background:#292929;}'
-    '.course-details th {background:linear-gradient(135deg,#070d19 0%,#122b45 55%,#173c4d 100%);font-size:14px;letter-spacing:.02em;'
-    'padding-top:16px;padding-bottom:16px;border-bottom:2px solid #ffffff;}'
-    '.course-details th:not(:last-child) {border-right:1px solid #ffffff;}'
-    '.course-details td:not(:last-child) {border-right:1px solid rgba(255,255,255,.55);}'
+    excel_buffer = BytesIO()
+    with pd.ExcelWriter(excel_buffer, engine="openpyxl", datetime_format="DD.MM.YYYY") as writer:
+        table.to_excel(writer, index=False, sheet_name="Курсове")
+        sheet = writer.sheets["Курсове"]
+        sheet.freeze_panes = "A2"
+        sheet.auto_filter.ref = sheet.dimensions
 
-    '</style>'
-    '<div class="course-details" role="region" aria-label="Детайли по курсове" tabindex="0">'
-    + display_table.to_html(index=False, escape=True, border=0, na_rep="—")
-    + '</div>'
-)
+    st.download_button(
+        "⬇️ Изтегли филтрираните курсове (Excel)",
+        excel_buffer.getvalue(),
+        file_name=f"transport_{start_date}_{end_date}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
-excel_buffer = BytesIO()
-with pd.ExcelWriter(excel_buffer, engine="openpyxl", datetime_format="DD.MM.YYYY") as writer:
-    table.to_excel(writer, index=False, sheet_name="Курсове")
-    sheet = writer.sheets["Курсове"]
-    sheet.freeze_panes = "A2"
-    sheet.auto_filter.ref = sheet.dimensions
 
-st.download_button(
-    "⬇️ Изтегли филтрираните курсове (Excel)",
-    excel_buffer.getvalue(),
-    file_name=f"transport_{start_date}_{end_date}.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-)
-
+with tab_cards:
+    from cards_view import render_cards
+    render_cards()
