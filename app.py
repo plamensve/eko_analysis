@@ -357,7 +357,7 @@ fig.update_layout(
         zeroline=False,
     ),
 )
-st.plotly_chart(fig, use_container_width=True, theme=None, config={"displaylogo": False})
+st.plotly_chart(fig, use_container_width=True, theme=None, config={"displaylogo": False, "scrollZoom": True})
 
 st.caption(
     f"За периода има {active_days} дни с курсове от общо "
