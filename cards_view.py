@@ -201,79 +201,95 @@ def render_cards():
                "Streamlit Secrets не се актуализира автоматично.")
     selected = st.selectbox("Горивна верига / лист", list(tables), key="cards_sheet")
 
-    # Restore data from the original first import, not from the currently
-    # uploaded (possibly edited/deleted) workbook or session-state tables.
-    with st.expander("↺ Възстанови първоначалните данни от Excel"):
-        st.write("Върни всички изтрити редове и колони от началния импорт.")
-        st.warning(
-            "Възстановяването ЗАМЕНЯ текущото съдържание в избраните листове. "
-            "Нови редове, колони, редакции и оцветявания в тях ще бъдат загубени. "
-            "Ако искаш да ги запазиш, първо изтегли текущия Excel от бутона по-долу."
-        )
-        with st.form("cards_restore_initial_import"):
-            restore_scope = st.radio(
-                "Какво да възстановя?",
-                ["Всички листове от началния импорт", "Само текущия лист"],
-                index=0,
+    # The restore panel is explicitly state-controlled because st.expander
+    # does not provide a programmatic close operation.
+    if "cards_restore_open" not in st.session_state:
+        st.session_state.cards_restore_open = False
+    if "cards_restore_form_version" not in st.session_state:
+        st.session_state.cards_restore_form_version = 0
+    restore_label = (
+        "▾ Възстанови първоначалните данни от Excel"
+        if st.session_state.cards_restore_open
+        else "▸ Възстанови първоначалните данни от Excel"
+    )
+    if st.button(restore_label, key="cards_restore_toggle", use_container_width=True):
+        st.session_state.cards_restore_open = not st.session_state.cards_restore_open
+
+    if st.session_state.cards_restore_open:
+        with st.container(border=True):
+            st.write("Върни всички изтрити редове и колони от началния импорт.")
+            st.warning(
+                "Възстановяването ЗАМЕНЯ текущото съдържание в избраните листове. "
+                "Нови редове, колони, редакции и оцветявания в тях ще бъдат загубени. "
+                "Ако искаш да ги запазиш, първо изтегли текущия Excel от бутона по-долу."
             )
-            confirm_restore = st.checkbox(
-                "Потвърждавам, че искам да заменя текущите данни "
-                "с първоначално импортираните."
-            )
-            restore_clicked = st.form_submit_button(
-                "↺ Възстанови оригиналните данни",
-                type="primary",
-                use_container_width=True,
-            )
-        if restore_clicked:
-            if not confirm_restore:
-                st.error("Постави отметка за потвърждение преди възстановяване.")
-            else:
-                initial_bytes = load_initial_source()
-                if not initial_bytes:
-                    st.error(
-                        "Липсва резервно копие на първоначалния Excel в Streamlit Secrets. "
-                        "Зареди оригиналния файл в Secrets, за да възстановиш данните."
-                    )
+            with st.form(f"cards_restore_initial_import_{st.session_state.cards_restore_form_version}"):
+                restore_scope = st.radio(
+                    "Какво да възстановя?",
+                    ["Всички листове от началния импорт", "Само текущия лист"],
+                    index=0,
+                )
+                confirm_restore = st.checkbox(
+                    "Потвърждавам, че искам да заменя текущите данни "
+                    "с първоначално импортираните.",
+                        key=f"cards_restore_confirm_{st.session_state.cards_restore_form_version}",
+                )
+                restore_clicked = st.form_submit_button(
+                    "↺ Възстанови оригиналните данни",
+                    type="primary",
+                    use_container_width=True,
+                )
+            if restore_clicked:
+                if not confirm_restore:
+                    st.error("Постави отметка за потвърждение преди възстановяване.")
                 else:
-                    try:
-                        raw_sheets = parse_workbook(initial_bytes)
-                        chosen_sheets = (
-                            list(raw_sheets)
-                            if restore_scope == "Всички листове от началния импорт"
-                            else [selected]
+                    initial_bytes = load_initial_source()
+                    if not initial_bytes:
+                        st.error(
+                            "Липсва резервно копие на първоначалния Excel в Streamlit Secrets. "
+                            "Зареди оригиналния файл в Secrets, за да възстановиш данните."
                         )
-                        if any(name not in raw_sheets for name in chosen_sheets):
-                            raise ValueError("Избраният лист липсва в първоначалния Excel.")
-                        recovered = {
-                            name: table_from_sheet(raw_sheets[name], name)
-                            for name in chosen_sheets
-                        }
-                    except Exception as exc:
-                        st.error(f"Неуспешно възстановяване: {exc}")
                     else:
-                        if restore_scope == "Всички листове от началния импорт":
-                            st.session_state.cards_tables = {
-                                name: recovered[name][0].copy(deep=True)
+                        try:
+                            raw_sheets = parse_workbook(initial_bytes)
+                            chosen_sheets = (
+                                list(raw_sheets)
+                                if restore_scope == "Всички листове от началния импорт"
+                                else [selected]
+                            )
+                            if any(name not in raw_sheets for name in chosen_sheets):
+                                raise ValueError("Избраният лист липсва в първоначалния Excel.")
+                            recovered = {
+                                name: table_from_sheet(raw_sheets[name], name)
                                 for name in chosen_sheets
                             }
-                            st.session_state.cards_meta = {
-                                name: (recovered[name][1], recovered[name][2])
-                                for name in chosen_sheets
-                            }
+                        except Exception as exc:
+                            st.error(f"Неуспешно възстановяване: {exc}")
                         else:
-                            frame, legend, labels = recovered[selected]
-                            st.session_state.cards_tables[selected] = frame.copy(deep=True)
-                            st.session_state.cards_meta[selected] = (legend, labels)
-                        for name in chosen_sheets:
-                            st.session_state.pop(f"cards_companies_{name}", None)
-                            st.session_state.pop(f"cards_search_{name}", None)
-                        st.session_state.cards_version += 1
-                        count = sum(len(recovered[name][0]) for name in chosen_sheets)
-                        st.session_state.cards_restore_notice = (
-                            f"Възстановени са {count} записа в "
-                            f"{len(chosen_sheets)} лист(а) от първоначалния импорт."
-                        )
+                            if restore_scope == "Всички листове от началния импорт":
+                                st.session_state.cards_tables = {
+                                    name: recovered[name][0].copy(deep=True)
+                                    for name in chosen_sheets
+                                }
+                                st.session_state.cards_meta = {
+                                    name: (recovered[name][1], recovered[name][2])
+                                    for name in chosen_sheets
+                                }
+                            else:
+                                frame, legend, labels = recovered[selected]
+                                st.session_state.cards_tables[selected] = frame.copy(deep=True)
+                                st.session_state.cards_meta[selected] = (legend, labels)
+                            for name in chosen_sheets:
+                                st.session_state.pop(f"cards_companies_{name}", None)
+                                st.session_state.pop(f"cards_search_{name}", None)
+                            st.session_state.cards_version += 1
+                            count = sum(len(recovered[name][0]) for name in chosen_sheets)
+                            st.session_state.cards_restore_notice = (
+                                f"Възстановени са {count} записа в "
+                                f"{len(chosen_sheets)} лист(а) от първоначалния импорт."
+                            )
+                            st.session_state.cards_restore_open = False
+                        st.session_state.cards_restore_form_version += 1
                         st.rerun()
 
     notice = st.session_state.pop("cards_restore_notice", None)
@@ -754,11 +770,26 @@ def render_cards():
     )
     options['suppressContextMenu'] = True
     options['suppressBrowserContextMenu'] = True
+    options['allowContextMenuWithControlKey'] = False
     options['rowSelection'] = 'single'
     # Keep resizing entirely inside the AG Grid component: no Streamlit rerun
     # while dragging, so cell edits, filters and selection are not interrupted.
     resize_js = JsCode("""
     function(params) {
+        // Block native browser/Windows right-click menu only inside the grid.
+        // Capture runs before AG Grid's bubbling contextmenu handlers, while
+        // leaving the cell callback free to show our custom color palette.
+        if (!document.__cardsNativeMenuGuard) {
+            document.__cardsNativeMenuGuard = true;
+            document.addEventListener('contextmenu', function(event) {
+                const target = event.target;
+                if (target && target.closest &&
+                    (target.closest('.ag-root-wrapper') ||
+                     target.closest('.cards-row-context'))) {
+                    event.preventDefault();
+                }
+            }, true);
+        }
         const container = document.getElementById('gridContainer');
         if (!container || container.querySelector('.cards-vertical-resizer')) return;
         const minimum = 300, maximum = 1600;
