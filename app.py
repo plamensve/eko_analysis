@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from html import escape
+from io import BytesIO
 
 st.set_page_config(page_title="Транспортен анализ", page_icon="🚛", layout="wide")
 
@@ -401,10 +402,39 @@ preferred = [
 ]
 columns = [c for c in preferred if c in tdf.columns]
 table = tdf[columns].sort_values("КУРС_ДАТА", ascending=False)
-st.dataframe(table, use_container_width=True, hide_index=True, height=510)
-st.download_button(
-    "⬇️ Изтегли филтрираните курсове (CSV)",
-    table.to_csv(index=False).encode("utf-8-sig"),
-    file_name=f"transport_{start_date}_{end_date}.csv",
-    mime="text/csv",
+# Render a scoped dark table so both headers and cells use the same palette.
+display_table = table.copy()
+display_table["КУРС_ДАТА"] = display_table["КУРС_ДАТА"].dt.strftime("%d.%m.%Y")
+st.html(
+    '<style>'
+    '.course-details {max-height:510px;overflow:auto;background:#10243e;'
+    'border:1px solid #344b66;border-radius:14px;}'
+    '.course-details table {width:100%;border-collapse:separate;border-spacing:0;'
+    'font-size:14px;color:#ffffff;}'
+    '.course-details th {position:sticky;top:0;z-index:1;background:#172f4d;'
+    'color:#ffffff;text-align:left;font-weight:700;white-space:nowrap;}'
+    '.course-details th,.course-details td {padding:12px 15px;'
+    'border-bottom:1px solid #2c435e;}'
+    '.course-details td {background:#10243e;color:#ffffff;white-space:nowrap;}'
+    '.course-details tbody tr:nth-child(even) td {background:#152b46;}'
+    '.course-details tbody tr:hover td {background:#234263;}'
+    '</style>'
+    '<div class="course-details" role="region" aria-label="Детайли по курсове" tabindex="0">'
+    + display_table.to_html(index=False, escape=True, border=0, na_rep="—")
+    + '</div>'
 )
+
+excel_buffer = BytesIO()
+with pd.ExcelWriter(excel_buffer, engine="openpyxl", datetime_format="DD.MM.YYYY") as writer:
+    table.to_excel(writer, index=False, sheet_name="Курсове")
+    sheet = writer.sheets["Курсове"]
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = sheet.dimensions
+
+st.download_button(
+    "⬇️ Изтегли филтрираните курсове (Excel)",
+    excel_buffer.getvalue(),
+    file_name=f"transport_{start_date}_{end_date}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+)
+
