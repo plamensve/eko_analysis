@@ -328,6 +328,7 @@ fig.add_bar(
     ),
 )
 fig.update_layout(
+    dragmode="pan",
     template="plotly_dark",
     height=380,
     margin=dict(l=14, r=20, t=16, b=20),
