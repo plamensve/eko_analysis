@@ -52,12 +52,19 @@ h1, h2, h3 {color: #17233b; letter-spacing: -0.025em;}
        background:rgba(255,255,255,.065);padding:7px 11px;border-radius:30px;}
 @media(max-width:700px){.hero{padding:26px 22px;}.hero:after{display:none;}}
 /* KPI cards: restrained pastel gradients, consistent hierarchy and ample whitespace */
-.kpi {position: relative; overflow: hidden; min-height: 152px;
+.kpi {position: relative; overflow: hidden; box-sizing: border-box; min-height: 194px; height: 100%;
       border-radius: 19px; padding: 21px 22px 19px; margin-bottom: 12px;
       border: 1px solid var(--kpi-border, #dce8f5);
       background: var(--kpi-bg, linear-gradient(135deg,#f8fbff,#eaf3ff));
       box-shadow: 0 6px 22px rgba(30,55,90,.055); transition: transform .2s ease,box-shadow .2s ease;}
 .kpi:hover {transform: translateY(-2px); box-shadow: 0 11px 28px rgba(30,55,90,.10);}
+/* Stretch each KPI to the tallest card within its own row. */
+[data-testid="stHorizontalBlock"]:has(.kpi) {align-items:stretch;}
+[data-testid="stColumn"]:has(.kpi) > [data-testid="stVerticalBlock"] {height:100%;}
+[data-testid="stColumn"]:has(.kpi) [data-testid="stElementContainer"]:has(.kpi),
+[data-testid="stColumn"]:has(.kpi) [data-testid="stMarkdown"],
+[data-testid="stColumn"]:has(.kpi) [data-testid="stMarkdownContainer"] {height:100%;}
+
 .kpi.blue {--kpi-bg: linear-gradient(130deg,#ffffff 0%,#e7f1ff 100%); --kpi-border:#d4e4fc; --kpi-accent:#3574d4;}
 .kpi.teal {--kpi-bg: linear-gradient(130deg,#ffffff 0%,#e3f8f4 100%); --kpi-border:#ceeae4; --kpi-accent:#168a7c;}
 .kpi.violet {--kpi-bg: linear-gradient(130deg,#ffffff 0%,#f0eaff 100%); --kpi-border:#e1d7f8; --kpi-accent:#7960bb;}
