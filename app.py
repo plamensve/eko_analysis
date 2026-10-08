@@ -13,11 +13,23 @@ st.markdown("""
 [data-testid="stSidebar"] input {color: #17233b;}
 [data-testid="stSidebar"] [data-testid="stDateInput"] input {color: #17233b;}
 h1, h2, h3 {color: #17233b; letter-spacing: -0.025em;}
-.hero {background: linear-gradient(110deg,#102945,#174a70); border-radius: 20px;
-       padding: 28px 34px; color: white; margin-bottom: 22px; box-shadow: 0 12px 28px rgba(18,44,75,.12);}
-.hero .eyebrow {font-size: 12px; font-weight: 700; letter-spacing: .15em; color: #8cd5ea;}
-.hero h1 {color: #fff; font-size: 32px; margin: 8px 0;}
-.hero p {color: #d8e9f4; margin: 0; font-size: 14px;}
+.hero {position:relative;overflow:hidden;background:linear-gradient(112deg,#10243f 0%,#173f63 61%,#23627e 100%);
+       border:1px solid rgba(255,255,255,.16);border-radius:22px;padding:32px 38px;
+       margin-bottom:24px;box-shadow:0 16px 36px rgba(15,42,69,.15);}
+.hero:after {content:"";position:absolute;width:350px;height:350px;right:-80px;top:-220px;
+       border:1px solid rgba(183,222,244,.20);border-radius:50%;box-shadow:0 0 0 65px rgba(181,225,245,.04);}
+.hero-top {display:flex;align-items:center;gap:10px;color:#a5d5ed;font-size:11px;
+       font-weight:750;letter-spacing:.16em;text-transform:uppercase;position:relative;z-index:1;}
+.hero-mark {display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
+       border-radius:9px;background:rgba(163,216,239,.14);border:1px solid rgba(204,235,249,.22);
+       color:#c9eafa;font-size:15px;letter-spacing:0;}
+.hero h1 {position:relative;z-index:1;color:#fff;font-size:clamp(28px,3vw,40px);
+       line-height:1.15;font-weight:770;letter-spacing:-.035em;margin:17px 0 12px;}
+.hero p {position:relative;z-index:1;color:#d3e1ee;margin:0;font-size:14px;line-height:1.6;max-width:680px;}
+.hero-footer {position:relative;z-index:1;display:flex;gap:10px;flex-wrap:wrap;margin-top:22px;}
+.hero-chip {font-size:11px;font-weight:650;color:#d5eaf4;border:1px solid rgba(206,232,243,.21);
+       background:rgba(255,255,255,.065);padding:7px 11px;border-radius:30px;}
+@media(max-width:700px){.hero{padding:26px 22px;}.hero:after{display:none;}}
 /* KPI cards: restrained pastel gradients, consistent hierarchy and ample whitespace */
 .kpi {position: relative; overflow: hidden; min-height: 152px;
       border-radius: 19px; padding: 21px 22px 19px; margin-bottom: 12px;
@@ -70,11 +82,15 @@ transport_df["л/км"] = safe_ratio(transport_df["Л"], transport_df["КМ"])
 transport_df["€/л"] = safe_ratio(transport_df["€_ЦЕНА_ОБЩО"], transport_df["Л"])
 
 st.markdown("""
-<div class="hero">
-<div class="eyebrow">TRANSPORT INTELLIGENCE</div>
-<h1>🚛 Транспортен анализ</h1>
-<p>Курсове, превозени литри, пробег и транспортни разходи на едно място.</p>
-</div>
+<section class="hero" aria-label="Транспортен анализ">
+  <div class="hero-top"><span class="hero-mark">↗</span> OPERATIONS OVERVIEW <span style="opacity:.45">/</span> ТРАНСПОРТ</div>
+  <h1>Транспортен анализ</h1>
+  <p>Централизирана информация за курсовете, превозените количества, пробега и транспортните разходи.</p>
+  <div class="hero-footer">
+    <span class="hero-chip">◉ Актуални данни от курсовете</span>
+    <span class="hero-chip">↗ Анализ по избран период</span>
+  </div>
+</section>
 """, unsafe_allow_html=True)
 
 valid_dates = transport_df["КУРС_ДАТА"].dropna()
@@ -109,6 +125,11 @@ with st.sidebar:
         for key in ("ТЪРГОВЕЦ", "ПРЕВОЗВАЧ", "ШОФЬОР", "ВЛЕКАЧ"):
             st.session_state[f"filter_{key}"] = []
         st.rerun()
+
+    # Only initialize on the first load: later user selections and "Покажи всички"
+    # remain authoritative, including an intentionally empty (all) selection.
+    if "filter_ТЪРГОВЕЦ" not in st.session_state:
+        st.session_state["filter_ТЪРГОВЕЦ"] = ["Vesela Nikolova"]
 
     filter_fields = [
         ("ТЪРГОВЕЦ", "Търговец", "Кой търговец е организирал курса?"),
@@ -168,7 +189,7 @@ cols = st.columns(4)
 with cols[0]:
     kpi("Превозени литри", format_number(total_liters), "литра общо", "◉", "blue")
 with cols[1]:
-    kpi("Общ пробег", format_number(total_km, 1), "километра общо", "↗", "teal")
+    kpi("Общ пробег / км", format_number(total_km, 1), "километра общо", "↗", "teal")
 with cols[2]:
     kpi("Транспортни разходи", format_number(total_cost, 2), "€ общо", "€", "violet")
 with cols[3]:
