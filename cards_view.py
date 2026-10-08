@@ -17,6 +17,16 @@ import streamlit as st
 WORKBOOK = Path(__file__).resolve().parent / "data" / "Еко_Списък_фирми.xlsx"
 CREATED = "Добавен на"
 UPDATED = "Последна промяна"
+ROW_COLOR = "Цвят на реда"
+COLORS = {
+    "Без цвят": "",
+    "Жълто": "#FFF2B2",
+    "Зелено": "#CFF4D2",
+    "Червено": "#FFD2D2",
+    "Синьо": "#D5E8FF",
+    "Оранжево": "#FFE0B8",
+    "Лилаво": "#E7D8FA",
+}
 
 
 @st.cache_data(show_spinner=False)
@@ -59,6 +69,8 @@ def table_from_sheet(raw, name):
         df[CREATED] = ""
     if UPDATED not in df:
         df[UPDATED] = ""
+    if ROW_COLOR not in df:
+        df[ROW_COLOR] = ""
     return df, legend, labels
 
 
@@ -77,6 +89,7 @@ def company_column(df):
 
 def workbook_bytes(tables, meta):
     out = BytesIO()
+    from openpyxl.styles import PatternFill
     with pd.ExcelWriter(out, engine="openpyxl") as writer:
         for name, frame in tables.items():
             legend, original_cols = meta[name]
@@ -92,6 +105,12 @@ def workbook_bytes(tables, meta):
             else:
                 frame.to_excel(writer, sheet_name=name, index=False, startrow=startrow)
             sheet = writer.sheets[name]
+            if ROW_COLOR in frame.columns:
+                for row_num, color in enumerate(frame[ROW_COLOR].tolist(), start=startrow + 2):
+                    if color in COLORS.values() and color:
+                        fill = PatternFill(fill_type="solid", fgColor=color.lstrip("#"))
+                        for cell in sheet[row_num]:
+                            cell.fill = fill
             sheet.freeze_panes = f"A{startrow + 2}"
             sheet.auto_filter.ref = f"A{startrow + 1}:{sheet.cell(sheet.max_row, sheet.max_column).coordinate}"
             for column in sheet.columns:
@@ -194,7 +213,7 @@ def render_cards():
                     st.rerun()
         with col_remove:
             st.markdown("**🗑️ Премахване на колона**")
-            removable = [name for name in whole.columns if name not in (CREATED, UPDATED)]
+            removable = [name for name in whole.columns if name not in (CREATED, UPDATED, ROW_COLOR)]
             if removable:
                 with st.form(f"cards_delete_column_{selected}"):
                     delete_name = st.selectbox("Колона за премахване", removable)
@@ -238,19 +257,55 @@ def render_cards():
         visible = visible.sort_values(company, ascending=ordering == "Фирма А–Я",
                                      kind="stable", key=lambda col: col.str.casefold())
 
+    with st.expander("🎨 Оцветяване на редове", expanded=True):
+        st.caption("Избери един или няколко реда от текущия филтриран списък.")
+        identifier = company if company else next(
+            (col for col in whole.columns if col not in (CREATED, UPDATED, ROW_COLOR)), None
+        )
+        def row_label(idx):
+            label = str(whole.at[idx, identifier]).strip() if identifier else ""
+            return f"Ред {idx + 1} — {label[:75]}" if label else f"Ред {idx + 1}"
+        choices = list(visible.index)
+        selected_rows = st.multiselect(
+            "Редове за маркиране", choices, format_func=row_label,
+            key=f"cards_color_rows_{selected}",
+            placeholder="Избери един или няколко реда",
+        )
+        color_label = st.selectbox("Цвят", list(COLORS), key=f"cards_color_choice_{selected}")
+        if st.button("Приложи цвета към избраните редове",
+                     key=f"cards_apply_color_{selected}", disabled=not selected_rows):
+            value = COLORS[color_label]
+            for idx in selected_rows:
+                whole.at[idx, ROW_COLOR] = value
+                whole.at[idx, UPDATED] = datetime.now(ZoneInfo("Europe/Sofia")).isoformat(timespec="seconds")
+            st.session_state.cards_tables[selected] = whole
+            st.session_state.cards_version += 1
+            st.rerun()
+
+    if visible[ROW_COLOR].isin([x for x in COLORS.values() if x]).any():
+        st.markdown("**Цветен преглед на редовете**")
+        preview = visible.drop(columns=[ROW_COLOR])
+        def highlight(row):
+            shade = visible.at[row.name, ROW_COLOR]
+            return [f"background-color: {shade}; color: #17233b" if shade in COLORS.values() and shade else "" for _ in row]
+        st.dataframe(preview.style.apply(highlight, axis=1),
+                     hide_index=True, use_container_width=True, height=420)
+        st.caption("Редакцията на клетки се извършва в таблицата отдолу.")
+
     st.caption(f"Показани {len(visible)} от {len(whole)} записа. "
                "Двоен клик върху клетка за редакция. Промените се прилагат веднага в текущата сесия.")
     # The stable original index preserves row identity across sort/filter operations.
     edited = st.data_editor(
         visible, key=f"cards_editor_{selected}_{st.session_state.cards_version}",
         hide_index=True, use_container_width=True, height=550,
-        num_rows="fixed", disabled=[CREATED, UPDATED],
+        num_rows="fixed", disabled=[CREATED, UPDATED, ROW_COLOR],
         column_config={
             CREATED: st.column_config.TextColumn(CREATED, help="Дата на добавяне; старите записи нямат известна дата"),
             UPDATED: st.column_config.TextColumn(UPDATED, help="Дата на последната промяна"),
+            ROW_COLOR: st.column_config.TextColumn(ROW_COLOR, help="Цвят, избран от палитрата"),
         },
     )
-    editable_cols = [c for c in whole if c not in (CREATED, UPDATED)]
+    editable_cols = [c for c in whole if c not in (CREATED, UPDATED, ROW_COLOR)]
     changes = 0
     for index in visible.index:
         for col in editable_cols:
@@ -277,7 +332,7 @@ def render_cards():
                 st.warning("Попълнете поне едно поле.")
             else:
                 now = datetime.now(ZoneInfo("Europe/Sofia")).isoformat(timespec="seconds")
-                row = {**values, CREATED: now, UPDATED: now}
+                row = {**values, CREATED: now, UPDATED: now, ROW_COLOR: ""}
                 st.session_state.cards_tables[selected] = pd.concat(
                     [whole, pd.DataFrame([row])], ignore_index=True)
                 st.session_state.cards_version += 1
