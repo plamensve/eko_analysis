@@ -169,7 +169,7 @@ def render_cards():
     st.markdown("""
     <section class="hero">
       <div class="hero-top"><span class="hero-mark">▤</span> COMPANY REGISTER / ГОРИВНИ КАРТИ</div>
-      <h1>Фирми и горивни карти</h1>
+      <h1>Фирми и карти за зареждане на гориво</h1>
       <p>Редакция, филтриране, сортиране и Excel експорт на списъците.</p>
     </section>
     """, unsafe_allow_html=True)
@@ -199,7 +199,7 @@ def render_cards():
     st.warning("Промените се пазят в текущата сесия. За трайно съхранение "
                "изтеглете актуализирания Excel и при следващото отваряне го заредете отново. "
                "Streamlit Secrets не се актуализира автоматично.")
-    selected = st.selectbox("Горивна верига / лист", list(tables), key="cards_sheet")
+    selected = st.selectbox("Верига бензиностанции / списък", list(tables), key="cards_sheet")
 
     # The restore panel is explicitly state-controlled because st.expander
     # does not provide a programmatic close operation.
