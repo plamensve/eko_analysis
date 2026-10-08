@@ -57,8 +57,14 @@ transport_df.loc[
 
 transport_df["КУРС_ДАТА"] = pd.to_datetime(
     transport_df["КУРС_ДАТА"],
-    dayfirst=True
+    dayfirst=True,
+    errors="coerce"
 )
+
+# Missing carrier/driver labels must remain selectable in the cascading filters.
+for column, missing_label in [("ПРЕВОЗВАЧ", "НЯМА ПРЕВОЗВАЧ"), ("ШОФЬОР", "НЯМА ШОФЬОР")]:
+    transport_df[column] = transport_df[column].fillna("").astype(str).str.strip()
+    transport_df.loc[transport_df[column] == "", column] = missing_label
 
 transport_df["КМ"] = pd.to_numeric(transport_df["КМ"], errors="coerce")
 transport_df["Л"] = pd.to_numeric(transport_df["Л"], errors="coerce")
@@ -157,7 +163,7 @@ df["employee"] = df["Номер на карта"].map(card_map).fillna("UNKNOWN"
 st.sidebar.header("Filters")
 
 start_date = st.sidebar.date_input("Start date", df["Дата"].min())
-end_date = st.sidebar.date_input("End date", df["Дата"].max())
+end_date = st.sidebar.date_input("End date", max(df["Дата"].max(), transport_df["КУРС_ДАТА"].max()))
 
 # -------------------------
 # DESCRIPTION (NEW)
@@ -586,7 +592,7 @@ with tab4:
     # -------------------------
     tdf = transport_df[
         (transport_df["КУРС_ДАТА"] >= pd.to_datetime(start_date)) &
-        (transport_df["КУРС_ДАТА"] <= pd.to_datetime(end_date))
+        (transport_df["КУРС_ДАТА"] < pd.to_datetime(end_date) + pd.Timedelta(days=1))
     ].copy()
 
     # -------------------------
