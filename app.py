@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
+from html import escape
 
 st.set_page_config(page_title="Транспортен анализ", page_icon="🚛", layout="wide")
 
@@ -53,6 +55,12 @@ h1, h2, h3 {color: #17233b; letter-spacing: -0.025em;}
 @media (prefers-reduced-motion:reduce) {.kpi{transition:none}.kpi:hover{transform:none}}
 .section-head {font-size: 19px; font-weight: 750; color: #192d49; margin: 30px 0 13px;}
 .filter-summary {color: #66758c; margin: 5px 0 20px; font-size: 13px;}
+.chart-filter-context {display:flex;flex-wrap:wrap;gap:8px;margin:15px 0 20px;}
+.chart-chip {display:inline-block;background:linear-gradient(125deg,#fff,#f0f5fc);
+  border:1px solid #dae5f3;border-radius:999px;padding:8px 12px;
+  font-size:12px;line-height:1.4;color:#36516e;}
+.chart-chip strong {color:#173955;}
+
 [data-testid="stDataFrame"] {border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden;}
 </style>
 """, unsafe_allow_html=True)
@@ -209,13 +217,137 @@ if tdf.empty:
     st.info("Няма курсове за избраните филтри.")
     st.stop()
 
-st.markdown('<div class="section-head">Тенденция по дати</div>', unsafe_allow_html=True)
-daily = (
-    tdf.assign(Дата=tdf["КУРС_ДАТА"].dt.date)
-    .groupby("Дата", as_index=True)["Л"].sum()
-    .rename("Превозени литри")
+# The chart always uses the fully filtered tdf, just like the KPI cards and table.
+st.markdown('<div class="section-head">Дневна тенденция на транспорта</div>', unsafe_allow_html=True)
+st.caption(
+    "Всяка колона представя общите данни за един ден. "
+    "Стойностите се преизчисляват автоматично при промяна на периода, "
+    "търговеца, превозвача, шофьора или влекача."
 )
-st.bar_chart(daily, use_container_width=True, height=290)
+
+def chart_filter_summary(field):
+    selection = st.session_state.get(f"filter_{field}", [])
+    if not selection:
+        return "Всички"
+    return selection[0] if len(selection) == 1 else f"{len(selection)} избрани"
+
+filter_descriptions = [
+    ("Период", f"{start_date:%d.%m.%Y} – {end_date:%d.%m.%Y}"),
+    ("Търговец", chart_filter_summary("ТЪРГОВЕЦ")),
+    ("Превозвач", chart_filter_summary("ПРЕВОЗВАЧ")),
+    ("Шофьор", chart_filter_summary("ШОФЬОР")),
+    ("Влекач", chart_filter_summary("ВЛЕКАЧ")),
+]
+chips = "".join(
+    f'<span class="chart-chip"><strong>{escape(label)}:</strong> '
+    f'{escape(value)}</span>'
+    for label, value in filter_descriptions
+)
+st.markdown(f'<div class="chart-filter-context">{chips}</div>', unsafe_allow_html=True)
+
+daily = (
+    tdf.assign(Дата=tdf["КУРС_ДАТА"].dt.normalize())
+    .groupby("Дата", as_index=False)
+    .agg(
+        литри=("Л", "sum"),
+        курсове=("КУРС_ДАТА", "size"),
+        километри=("КМ", "sum"),
+        разход=("€_ЦЕНА_ОБЩО", "sum"),
+    )
+    .sort_values("Дата")
+)
+active_days = len(daily)
+average_liters = total_liters / active_days if active_days else 0
+peak = daily.loc[daily["литри"].idxmax()] if active_days else None
+
+summary_cols = st.columns(4)
+with summary_cols[0]:
+    st.metric("Превозени литри", f"{format_number(total_liters)} л")
+with summary_cols[1]:
+    st.metric("Дни с курсове", format_number(active_days))
+with summary_cols[2]:
+    st.metric("Средно на активен ден", f"{format_number(average_liters)} л")
+with summary_cols[3]:
+    st.metric(
+        "Най-натоварен ден",
+        peak["Дата"].strftime("%d.%m.%Y") if peak is not None else "—",
+        f"{format_number(peak['литри'])} л" if peak is not None else None,
+        delta_color="off",
+    )
+
+metric_options = {
+    "Превозени литри": ("литри", "л", "#4596df"),
+    "Брой курсове": ("курсове", "курса", "#258d80"),
+    "Пробег": ("километри", "км", "#8169c6"),
+    "Транспортни разходи": ("разход", "€", "#cc903f"),
+}
+metric_name = st.selectbox(
+    "Какво да показва графиката?",
+    list(metric_options),
+    index=0,
+    key="transport_daily_metric",
+    help="Избери показател. Всички стойности използват същите филтри като ключовите показатели.",
+)
+metric_field, metric_unit, bar_color = metric_options[metric_name]
+
+fig = go.Figure()
+fig.add_bar(
+    x=daily["Дата"],
+    y=daily[metric_field],
+    marker_color=bar_color,
+    marker_line_width=0,
+    customdata=daily[["литри", "курсове", "километри", "разход"]].to_numpy(),
+    hovertemplate=(
+        "<b>%{x|%d.%m.%Y}</b><br>"
+        "Превозени литри: %{customdata[0]:,.0f} л<br>"
+        "Курсове: %{customdata[1]:,.0f}<br>"
+        "Пробег: %{customdata[2]:,.1f} км<br>"
+        "Транспортни разходи: %{customdata[3]:,.2f} €"
+        "<extra></extra>"
+    ),
+)
+fig.update_layout(
+    height=380,
+    margin=dict(l=14, r=20, t=16, b=20),
+    paper_bgcolor="#ffffff",
+    plot_bgcolor="#ffffff",
+    font=dict(family="Arial, sans-serif", color="#34445c", size=12),
+    showlegend=False,
+    bargap=0.32,
+    hoverlabel=dict(bgcolor="#172c45", font_color="#ffffff"),
+    xaxis=dict(
+        title=None,
+        type="date",
+        tickformat="%d.%m",
+        tickangle=0,
+        showgrid=False,
+        showline=True,
+        linecolor="#dce4ed",
+        range=[pd.Timestamp(start_date), pd.Timestamp(end_date) + pd.Timedelta(days=1)],
+    ),
+    yaxis=dict(
+        title=f"{metric_name} ({metric_unit})",
+        rangemode="tozero",
+        tickformat=",~s",
+        gridcolor="#eaf0f6",
+        zeroline=False,
+    ),
+)
+st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+
+st.caption(
+    f"За периода има {active_days} дни с курсове от общо "
+    f"{(end_date - start_date).days + 1} календарни дни. "
+    "Дните без курсове остават без колона; това не означава липсващи данни."
+)
+with st.expander("ℹ️ Как да четете графиката?"):
+    st.markdown(
+        "- **Всяка колона** показва сумата за избраната дата и показател.\\n"
+        "- **Посочете колона с мишката**, за да видите литри, брой курсове, километри и разходи.\\n"
+        "- **Сменете показателя** над графиката, за да сравните натоварване и разходи.\\n"
+        "- **Филтрите отляво** влияят едновременно върху графиката, картите и таблицата.\\n"
+        "- **Активен ден** означава ден с поне един курс за текущите филтри."
+    )
 
 st.markdown('<div class="section-head">Детайли по курсове</div>', unsafe_allow_html=True)
 preferred = [
