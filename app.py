@@ -552,7 +552,6 @@ with tab_analysis:
     # Calendar days without courses count as 0 in daily totals. An
     # incomplete N-day window stays unavailable instead of treating unknown
     # days before the dataset starts as zero.
-    windowed = history_daily.rolling(window=average_days, min_periods=average_days)
     if metric_field == "разход_1000л":
         # Weighted rate: sum(cost) / sum(liters), NEVER the simple average
         # of the daily rates (days can have very different volumes).
@@ -586,6 +585,7 @@ with tab_analysis:
 
     fig = go.Figure()
     fig.add_bar(
+        name="Дневна стойност",
         x=daily["Дата"],
         y=daily[metric_field],
         marker_color=bar_color,
@@ -623,13 +623,13 @@ with tab_analysis:
         dragmode="pan",
         template="plotly_dark",
         height=380,
-        margin=dict(l=14, r=20, t=16, b=20),
+        margin=dict(l=14, r=20, t=60, b=20),
         paper_bgcolor="#000000",
         plot_bgcolor="#000000",
         font=dict(family="Arial, sans-serif", color="#f0f5ff", size=12),
         showlegend=True,
-        legend=dict(orientation="h", x=0.01, y=1.12, xanchor="left", yanchor="bottom",
-                    font=dict(color="#ff7777", size=12)),
+        legend=dict(orientation="h", x=0.01, y=1.08, xanchor="left", yanchor="bottom",
+                    font=dict(color="#f0f5ff", size=12)),
         bargap=0.12,
         hoverlabel=dict(bgcolor="#172c45", font_color="#ffffff"),
         xaxis=dict(
