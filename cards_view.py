@@ -168,6 +168,52 @@ def render_cards():
         st.info("В този лист няма таблица с колони.")
         return
 
+    # Column management is scoped to the selected worksheet only.
+    with st.expander("⚙️ Управление на колоните — добавяне и премахване"):
+        col_add, col_remove = st.columns(2)
+        with col_add:
+            st.markdown("**➕ Нова колона**")
+            with st.form(f"cards_new_column_{selected}", clear_on_submit=True):
+                new_name = st.text_input("Име на колоната", max_chars=100)
+                default_value = st.text_input("Начална стойност за всички редове (по избор)")
+                add_column = st.form_submit_button("Добави колона", use_container_width=True)
+            if add_column:
+                new_name = new_name.strip()
+                if not new_name:
+                    st.error("Въведи име за новата колона.")
+                elif new_name.casefold() in {name.casefold() for name in whole.columns}:
+                    st.error("Вече съществува колона с това име.")
+                else:
+                    # Put user columns before the read-only audit timestamps.
+                    position = len(whole.columns) - sum(
+                        label in whole.columns for label in (CREATED, UPDATED)
+                    )
+                    whole.insert(position, new_name, default_value)
+                    st.session_state.cards_tables[selected] = whole
+                    st.session_state.cards_version += 1
+                    st.rerun()
+        with col_remove:
+            st.markdown("**🗑️ Премахване на колона**")
+            removable = [name for name in whole.columns if name not in (CREATED, UPDATED)]
+            if removable:
+                with st.form(f"cards_delete_column_{selected}"):
+                    delete_name = st.selectbox("Колона за премахване", removable)
+                    confirm_delete = st.checkbox("Потвърждавам изтриването на колоната и всички стойности в нея")
+                    delete_column = st.form_submit_button(
+                        "Премахни колоната", type="secondary", use_container_width=True
+                    )
+                if delete_column:
+                    if not confirm_delete:
+                        st.error("Потвърди изтриването преди да продължиш.")
+                    else:
+                        st.session_state.cards_tables[selected] = whole.drop(columns=[delete_name])
+                        st.session_state.cards_version += 1
+                        st.rerun()
+            else:
+                st.info("Няма потребителски колони за премахване.")
+        st.caption("Колоните „Добавен на“ и „Последна промяна“ са защитени. "
+                   "Промените засягат само избрания лист и влизат в Excel експорта.")
+
     company = company_column(whole)
     left, middle, right = st.columns([2, 2, 1])
     with left:
