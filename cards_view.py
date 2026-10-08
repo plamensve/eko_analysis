@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 
 WORKBOOK = Path(__file__).resolve().parent / "data" / "Еко_Списък_фирми.xlsx"
 CREATED = "Добавен на"
@@ -20,12 +21,18 @@ UPDATED = "Последна промяна"
 ROW_COLOR = "Цвят на реда"
 COLORS = {
     "Без цвят": "",
-    "Жълто": "#FFF2B2",
-    "Зелено": "#CFF4D2",
-    "Червено": "#FFD2D2",
-    "Синьо": "#D5E8FF",
-    "Оранжево": "#FFE0B8",
-    "Лилаво": "#E7D8FA",
+    "Червено": "#FFD1D1",
+    "Оранжево": "#FFE0B2",
+    "Жълто": "#FFF2A8",
+    "Зелено": "#C9F2CD",
+    "Синьо": "#CFE5FF",
+    "Лилаво": "#E4D5FF",
+    "Розово": "#FFD4EC",
+    "Тюркоазено": "#BDF1EF",
+    "Кафяво": "#E2C9B2",
+    "Сиво": "#DADFE5",
+    "Черно": "#202A37",
+    "Бяло": "#FFFFFF",
 }
 
 
@@ -257,68 +264,128 @@ def render_cards():
         visible = visible.sort_values(company, ascending=ordering == "Фирма А–Я",
                                      kind="stable", key=lambda col: col.str.casefold())
 
-    with st.expander("🎨 Оцветяване на редове", expanded=True):
-        st.caption("Избери един или няколко реда от текущия филтриран списък.")
-        identifier = company if company else next(
-            (col for col in whole.columns if col not in (CREATED, UPDATED, ROW_COLOR)), None
-        )
-        def row_label(idx):
-            label = str(whole.at[idx, identifier]).strip() if identifier else ""
-            return f"Ред {idx + 1} — {label[:75]}" if label else f"Ред {idx + 1}"
-        choices = list(visible.index)
-        selected_rows = st.multiselect(
-            "Редове за маркиране", choices, format_func=row_label,
-            key=f"cards_color_rows_{selected}",
-            placeholder="Избери един или няколко реда",
-        )
-        color_label = st.selectbox("Цвят", list(COLORS), key=f"cards_color_choice_{selected}")
-        if st.button("Приложи цвета към избраните редове",
-                     key=f"cards_apply_color_{selected}", disabled=not selected_rows):
-            value = COLORS[color_label]
-            for idx in selected_rows:
-                whole.at[idx, ROW_COLOR] = value
-                whole.at[idx, UPDATED] = datetime.now(ZoneInfo("Europe/Sofia")).isoformat(timespec="seconds")
-            st.session_state.cards_tables[selected] = whole
-            st.session_state.cards_version += 1
-            st.rerun()
-
-    if visible[ROW_COLOR].isin([x for x in COLORS.values() if x]).any():
-        st.markdown("**Цветен преглед на редовете**")
-        preview = visible.drop(columns=[ROW_COLOR])
-        def highlight(row):
-            shade = visible.at[row.name, ROW_COLOR]
-            return [f"background-color: {shade}; color: #17233b" if shade in COLORS.values() and shade else "" for _ in row]
-        st.dataframe(preview.style.apply(highlight, axis=1),
-                     hide_index=True, use_container_width=True, height=420)
-        st.caption("Редакцията на клетки се извършва в таблицата отдолу.")
-
     st.caption(f"Показани {len(visible)} от {len(whole)} записа. "
-               "Двоен клик върху клетка за редакция. Промените се прилагат веднага в текущата сесия.")
-    # The stable original index preserves row identity across sort/filter operations.
-    edited = st.data_editor(
-        visible, key=f"cards_editor_{selected}_{st.session_state.cards_version}",
-        hide_index=True, use_container_width=True, height=550,
-        num_rows="fixed", disabled=[CREATED, UPDATED, ROW_COLOR],
-        column_config={
-            CREATED: st.column_config.TextColumn(CREATED, help="Дата на добавяне; старите записи нямат известна дата"),
-            UPDATED: st.column_config.TextColumn(UPDATED, help="Дата на последната промяна"),
-            ROW_COLOR: st.column_config.TextColumn(ROW_COLOR, help="Цвят, избран от палитрата"),
-        },
+               "Десен бутон върху ред → Оцветяване. "
+               "Двоен клик върху клетка → редакция.")
+    # Native AG Grid context menus require an Enterprise module. This custom
+    # DOM menu uses Community APIs and therefore requires no paid license.
+    palette_js = JsCode("""
+    function(params) {
+        if (!params || !params.node || !params.node.data) return;
+        const ev = params.event;
+        if (ev && ev.preventDefault) ev.preventDefault();
+        document.querySelectorAll('.cards-row-context').forEach(x => x.remove());
+        const palette = [
+            ['Без цвят',''],['Червено','#FFD1D1'],['Оранжево','#FFE0B2'],
+            ['Жълто','#FFF2A8'],['Зелено','#C9F2CD'],['Синьо','#CFE5FF'],
+            ['Лилаво','#E4D5FF'],['Розово','#FFD4EC'],['Тюркоазено','#BDF1EF'],
+            ['Кафяво','#E2C9B2'],['Сиво','#DADFE5'],['Черно','#202A37'],
+            ['Бяло','#FFFFFF']
+        ];
+        const menu = document.createElement('div');
+        menu.className = 'cards-row-context';
+        menu.style.cssText = 'position:fixed;z-index:2147483600;background:#102438;' +
+            'color:#fff;border:1px solid #47647f;box-shadow:0 12px 30px #0008;' +
+            'padding:12px;border-radius:12px;min-width:240px;max-width:270px;';
+        const title = document.createElement('div');
+        title.textContent = '🎨 Оцветяване на реда';
+        title.style.cssText = 'font-size:13px;font-weight:700;margin-bottom:9px;';
+        menu.appendChild(title);
+        const paletteBox = document.createElement('div');
+        paletteBox.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:7px;';
+        palette.forEach(([name,hex]) => {
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.title = name;
+            option.setAttribute('aria-label', name);
+            option.style.cssText = 'width:44px;height:34px;border-radius:7px;cursor:pointer;' +
+                'border:1px solid #6984a0;background:' + (hex || '#132f46') +
+                ';color:' + (hex === '#202A37' || !hex ? '#fff' : '#17233b') + ';';
+            option.textContent = hex ? '●' : '×';
+            option.onclick = (e) => {
+                e.stopPropagation();
+                const timestamp = new Date().toISOString();
+                params.node.setDataValue('Цвят на реда', hex);
+                params.node.setDataValue('Последна промяна', timestamp);
+                params.api.refreshCells({rowNodes:[params.node],force:true});
+                menu.remove();
+            };
+            paletteBox.appendChild(option);
+        });
+        menu.appendChild(paletteBox);
+        const note = document.createElement('div');
+        note.textContent = 'Посочи квадратче, за да видиш цвета.';
+        note.style.cssText = 'font-size:11px;color:#c9d9eb;margin-top:9px;';
+        menu.appendChild(note);
+        document.body.appendChild(menu);
+        const x = ev && ev.clientX !== undefined ? ev.clientX : 30;
+        const y = ev && ev.clientY !== undefined ? ev.clientY : 30;
+        menu.style.left = Math.max(5, Math.min(x, innerWidth - menu.offsetWidth - 8)) + 'px';
+        menu.style.top = Math.max(5, Math.min(y, innerHeight - menu.offsetHeight - 8)) + 'px';
+        const close = (event) => {
+            if (!menu.contains(event.target)) {
+                menu.remove();
+                document.removeEventListener('pointerdown', close, true);
+            }
+        };
+        setTimeout(() => document.addEventListener('pointerdown', close, true), 0);
+    }
+    """)
+    row_style_js = JsCode("""
+    function(params) {
+        const color = (params.data && params.data['Цвят на реда']) || '';
+        const allowed = ['#FFD1D1','#FFE0B2','#FFF2A8','#C9F2CD','#CFE5FF',
+                         '#E4D5FF','#FFD4EC','#BDF1EF','#E2C9B2','#DADFE5',
+                         '#202A37','#FFFFFF'];
+        if (allowed.includes(color)) {
+            return {backgroundColor:color,
+                    color: color === '#202A37' ? '#FFFFFF' : '#17233b'};
+        }
+        return undefined;
+    }
+    """)
+    display = visible.copy()
+    display['_row_id'] = display.index.astype(int)
+    grid = GridOptionsBuilder.from_dataframe(display)
+    grid.configure_default_column(editable=True, sortable=True, filter=True,
+                                  resizable=True, minWidth=135)
+    for readonly in (CREATED, UPDATED, ROW_COLOR, '_row_id'):
+        grid.configure_column(readonly, editable=False, hide=(readonly in (ROW_COLOR, '_row_id')))
+    options = grid.build()
+    options['onCellContextMenu'] = palette_js
+    options['getRowStyle'] = row_style_js
+    options['getRowId'] = JsCode("function(p) {return String(p.data._row_id);}")
+    options['suppressContextMenu'] = True
+    response = AgGrid(
+        display, gridOptions=options, key=f"cards_grid_{selected}_{st.session_state.cards_version}",
+        allow_unsafe_jscode=True, enable_enterprise_modules=False,
+        update_mode=GridUpdateMode.VALUE_CHANGED,
+        data_return_mode=DataReturnMode.AS_INPUT,
+        try_to_convert_back_to_original_types=False,
+        height=550, theme='streamlit',
     )
-    editable_cols = [c for c in whole if c not in (CREATED, UPDATED, ROW_COLOR)]
+    edited = pd.DataFrame(response['data'])
+    # Persist by stable source row id, even when the grid is sorted or filtered.
     changes = 0
-    for index in visible.index:
-        for col in editable_cols:
-            new_value = str(edited.at[index, col] or "").strip()
-            if "карт" in col.casefold() and "номер" in col.casefold():
-                new_value = normalise_card(new_value)
-            if new_value != str(whole.at[index, col]):
-                whole.at[index, col] = new_value
-                changes += 1
-                whole.at[index, UPDATED] = datetime.now(ZoneInfo("Europe/Sofia")).isoformat(timespec="seconds")
+    if '_row_id' in edited.columns:
+        for _, row in edited.iterrows():
+            idx = int(row['_row_id'])
+            if idx not in whole.index:
+                continue
+            for col in whole.columns:
+                if col in (CREATED, UPDATED) or col not in row:
+                    continue
+                raw = row[col]
+                new_value = '' if pd.isna(raw) else str(raw).strip()
+                if 'карт' in col.casefold() and 'номер' in col.casefold():
+                    new_value = normalise_card(new_value)
+                if new_value != str(whole.at[idx, col]):
+                    whole.at[idx, col] = new_value
+                    changes += 1
+                    whole.at[idx, UPDATED] = datetime.now(
+                        ZoneInfo('Europe/Sofia')).isoformat(timespec='seconds')
     if changes:
         st.session_state.cards_tables[selected] = whole
-        st.toast(f"Записани {changes} промени в текущата сесия.")
 
     with st.expander("➕ Добави нов ред"):
         st.caption("Новият ред се добавя към избрания лист.")
