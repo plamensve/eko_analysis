@@ -495,12 +495,9 @@ def render_cards():
         getGui() { return this.eGui; }
         refresh(params) {
             const isNew = !!params.node.rowPinned;
-            const confirming = !!params.node._confirmDelete;
-            this.eGui.textContent = isNew ? '＋ Нов ред' :
-                                   (confirming ? '✓ Изтрий?' : '×');
-            this.eGui.title = isNew ? 'Добави ред' :
-                (confirming ? 'Натисни пак за изтриване' : 'Изтрий реда с потвърждение');
-            this.eGui.style.color = confirming ? '#c02942' : '#176b9e';
+            this.eGui.textContent = isNew ? '＋ Нов ред' : '×';
+            this.eGui.title = isNew ? 'Добави ред' : 'Изтрий този ред с потвърждение';
+            this.eGui.style.color = isNew ? '#176b9e' : '#b42335';
             this.eGui.style.fontSize = isNew ? '13px' : '19px';
             return true;
         }
@@ -511,23 +508,129 @@ def render_cards():
         if (!params.colDef || params.colDef.field !== '_grid_action') return;
         const event = params.event;
         if (event) { event.preventDefault(); event.stopPropagation(); }
+
         let anchor = params.api.getDisplayedRowAtIndex(0);
         if (!anchor) params.api.forEachNode(node => {
             if (!anchor && !node.rowPinned) anchor = node;
         });
         if (!anchor) return;
+
         if (params.node.rowPinned) {
             anchor.setDataValue('_grid_action', 'add_row');
             return;
         }
+        if (!params.node.data) return;
         const rowId = Number(params.node.data._row_id);
-        if (rowId < 0) return;
-        if (!params.node._confirmDelete) {
-            params.node._confirmDelete = true;
-            params.api.refreshCells({rowNodes:[params.node],columns:['_grid_action'],force:true});
-            return;
-        }
-        anchor.setDataValue('_grid_action', 'delete_row:' + rowId);
+        if (!Number.isInteger(rowId) || rowId < 0) return;
+
+        // Reuse the column-delete confirmation design, without leaving the grid.
+        const existing = document.querySelector('.cards-delete-row-overlay');
+        if (existing) return;
+        const record = params.node.data;
+        const companyKey = Object.keys(record).find(name =>
+            /фирма|надпис на карта|пуснати карти за издаване списък/i.test(name)
+        );
+        const companyName = companyKey ? String(record[companyKey] || '').trim() : '';
+        const cardKey = Object.keys(record).find(name =>
+            /номер.*карт|карт.*номер/i.test(name)
+        );
+        const cardNumber = cardKey ? String(record[cardKey] || '').trim() : '';
+        const maskedCard = cardNumber ? '•••• ' + cardNumber.slice(-4) : '';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'cards-delete-row-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483600;' +
+            'background:rgba(4,11,24,.67);display:flex;align-items:center;' +
+            'justify-content:center;padding:16px;box-sizing:border-box;';
+
+        const dialog = document.createElement('div');
+        dialog.setAttribute('role', 'alertdialog');
+        dialog.setAttribute('aria-modal', 'true');
+        dialog.setAttribute('aria-labelledby', 'cards-delete-row-title');
+        dialog.setAttribute('aria-describedby', 'cards-delete-row-description');
+        dialog.style.cssText = 'width:min(450px,100%);border:1px solid #496781;' +
+            'background:#10243b;color:#f6faff;box-shadow:0 20px 55px #0008;' +
+            'border-radius:16px;padding:23px;box-sizing:border-box;';
+
+        const title = document.createElement('h3');
+        title.id = 'cards-delete-row-title';
+        title.textContent = 'Изтриване на ред';
+        title.style.cssText = 'font-size:19px;font-weight:750;margin:0 0 12px;color:white;';
+
+        const question = document.createElement('p');
+        question.id = 'cards-delete-row-description';
+        question.textContent = 'Сигурни ли сте, че искате да изтриете ред № ' +
+            (rowId + 1) + '?';
+        question.style.cssText = 'font-size:14px;line-height:1.55;' +
+            'margin:0 0 10px;color:#e6effa;';
+
+        const detail = document.createElement('p');
+        detail.style.cssText = 'font-size:13px;line-height:1.5;' +
+            'margin:0 0 10px;color:#d0e5fa;overflow-wrap:anywhere;';
+        const details = [];
+        if (companyName) details.push('Фирма: ' + companyName);
+        if (maskedCard) details.push('Карта: ' + maskedCard);
+        detail.textContent = details.join('  |  ');
+        if (!details.length) detail.style.display = 'none';
+
+        const warning = document.createElement('p');
+        warning.textContent = 'Всички данни в този ред ще бъдат премахнати от текущия регистър и следващия Excel експорт.';
+        warning.style.cssText = 'font-size:12px;line-height:1.5;' +
+            'margin:0 0 22px;color:#ffd0cb;';
+
+        const actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;justify-content:flex-end;' +
+            'gap:10px;flex-wrap:wrap;';
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.textContent = 'Отказ';
+        cancel.style.cssText = 'border-radius:9px;padding:10px 17px;font-weight:650;' +
+            'background:#294760;color:white;border:1px solid #58738d;cursor:pointer;';
+        const confirm = document.createElement('button');
+        confirm.type = 'button';
+        confirm.textContent = 'Изтрий реда';
+        confirm.style.cssText = 'border-radius:9px;padding:10px 17px;font-weight:700;' +
+            'background:#b42335;color:white;border:1px solid #dd4255;cursor:pointer;';
+
+        const previousFocus = document.activeElement;
+        const onKeyDown = e => {
+            if (e.key === 'Escape') { e.preventDefault(); close(); }
+            if (e.key === 'Tab') {
+                if (e.shiftKey && document.activeElement === cancel) {
+                    e.preventDefault(); confirm.focus();
+                } else if (!e.shiftKey && document.activeElement === confirm) {
+                    e.preventDefault(); cancel.focus();
+                }
+            }
+        };
+        const close = () => {
+            overlay.remove();
+            document.removeEventListener('keydown', onKeyDown, true);
+            if (previousFocus && previousFocus.isConnected) previousFocus.focus();
+        };
+        cancel.onclick = e => { e.preventDefault(); e.stopPropagation(); close(); };
+        confirm.onclick = e => {
+            e.preventDefault(); e.stopPropagation();
+            const currentNode = params.api.getRowNode(String(rowId));
+            if (!currentNode || !anchor || !anchor.data) {
+                warning.textContent = 'Редът вече не е наличен. Опитайте отново.';
+                return;
+            }
+            anchor.setDataValue('_grid_action', 'delete_row:' + rowId);
+            close();
+        };
+        overlay.onclick = e => { if (e.target === overlay) close(); };
+        actions.appendChild(cancel);
+        actions.appendChild(confirm);
+        dialog.appendChild(title);
+        dialog.appendChild(question);
+        dialog.appendChild(detail);
+        dialog.appendChild(warning);
+        dialog.appendChild(actions);
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+        document.addEventListener('keydown', onKeyDown, true);
+        cancel.focus();
     }
     """)
     display = visible.copy()
