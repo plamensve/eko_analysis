@@ -18,11 +18,27 @@ h1, h2, h3 {color: #17233b; letter-spacing: -0.025em;}
 .hero .eyebrow {font-size: 12px; font-weight: 700; letter-spacing: .15em; color: #8cd5ea;}
 .hero h1 {color: #fff; font-size: 32px; margin: 8px 0;}
 .hero p {color: #d8e9f4; margin: 0; font-size: 14px;}
-.kpi {background: #fff; border: 1px solid #e2e8f0; border-radius: 16px;
-      padding: 21px 23px; min-height: 127px; box-shadow: 0 5px 14px rgba(17,40,72,.04);}
-.kpi-label {font-size: 13px; color: #66758c; font-weight: 600;}
-.kpi-value {font-size: 27px; color: #142b49; font-weight: 750; margin-top: 12px; white-space: nowrap;}
-.kpi-unit {font-size: 12px; color: #71819a; margin-top: 3px;}
+/* KPI cards: restrained pastel gradients, consistent hierarchy and ample whitespace */
+.kpi {position: relative; overflow: hidden; min-height: 152px;
+      border-radius: 19px; padding: 21px 22px 19px; margin-bottom: 12px;
+      border: 1px solid var(--kpi-border, #dce8f5);
+      background: var(--kpi-bg, linear-gradient(135deg,#f8fbff,#eaf3ff));
+      box-shadow: 0 6px 22px rgba(30,55,90,.055); transition: transform .2s ease,box-shadow .2s ease;}
+.kpi:hover {transform: translateY(-2px); box-shadow: 0 11px 28px rgba(30,55,90,.10);}
+.kpi.blue {--kpi-bg: linear-gradient(130deg,#ffffff 0%,#e7f1ff 100%); --kpi-border:#d4e4fc; --kpi-accent:#3574d4;}
+.kpi.teal {--kpi-bg: linear-gradient(130deg,#ffffff 0%,#e3f8f4 100%); --kpi-border:#ceeae4; --kpi-accent:#168a7c;}
+.kpi.violet {--kpi-bg: linear-gradient(130deg,#ffffff 0%,#f0eaff 100%); --kpi-border:#e1d7f8; --kpi-accent:#7960bb;}
+.kpi.amber {--kpi-bg: linear-gradient(130deg,#ffffff 0%,#fff3e2 100%); --kpi-border:#f3e3c8; --kpi-accent:#c48729;}
+.kpi-top {display:flex; align-items:center; justify-content:space-between; gap:12px;}
+.kpi-label {font-size:13px; color:#50627a; font-weight:650; line-height:1.35;}
+.kpi-icon {display:flex; align-items:center; justify-content:center; flex:0 0 38px; height:38px;
+           border-radius:12px; color:var(--kpi-accent); background:rgba(255,255,255,.68); font-size:21px;}
+.kpi-value {font-size:clamp(21px,2vw,30px); color:#182d49; letter-spacing:-.035em;
+            font-weight:780; margin-top:16px; line-height:1.18; overflow-wrap:anywhere; font-variant-numeric:tabular-nums;}
+.kpi-unit {font-size:12px; color:#6a7c91; margin-top:6px;}
+.kpi:before {content:""; position:absolute; left:0; top:21px; bottom:21px; width:3px;
+             background:var(--kpi-accent); border-radius:0 3px 3px 0; opacity:.7;}
+@media (prefers-reduced-motion:reduce) {.kpi{transition:none}.kpi:hover{transform:none}}
 .section-head {font-size: 19px; font-weight: 750; color: #192d49; margin: 30px 0 13px;}
 .filter-summary {color: #66758c; margin: 5px 0 20px; font-size: 13px;}
 [data-testid="stDataFrame"] {border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden;}
@@ -126,10 +142,14 @@ with st.sidebar:
 def format_number(value, decimals=0):
     return f"{value:,.{decimals}f}".replace(",", " ")
 
-def kpi(label, value, unit=""):
+def kpi(label, value, unit="", icon="◈", tone="blue"):
+    """Render one accessible KPI tile; tone is controlled by the caller."""
     st.markdown(
-        f'<div class="kpi"><div class="kpi-label">{label}</div>'
-        f'<div class="kpi-value">{value}</div><div class="kpi-unit">{unit}</div></div>',
+        f'<div class="kpi {tone}">'
+        f'<div class="kpi-top"><div class="kpi-label">{label}</div>'
+        f'<span class="kpi-icon" aria-hidden="true">{icon}</span></div>'
+        f'<div class="kpi-value">{value}</div>'
+        f'<div class="kpi-unit">{unit}</div></div>',
         unsafe_allow_html=True,
     )
 
@@ -146,23 +166,23 @@ st.markdown(
 st.markdown('<div class="section-head">Ключови показатели</div>', unsafe_allow_html=True)
 cols = st.columns(4)
 with cols[0]:
-    kpi("Превозени литри", format_number(total_liters), "л")
+    kpi("Превозени литри", format_number(total_liters), "литра общо", "◉", "blue")
 with cols[1]:
-    kpi("Общ пробег", format_number(total_km, 1), "км")
+    kpi("Общ пробег", format_number(total_km, 1), "километра общо", "↗", "teal")
 with cols[2]:
-    kpi("Транспортни разходи", format_number(total_cost, 2), "€")
+    kpi("Транспортни разходи", format_number(total_cost, 2), "€ общо", "€", "violet")
 with cols[3]:
-    kpi("Брой курсове", format_number(count), "курса")
+    kpi("Брой курсове", format_number(count), "изпълнени курса", "▤", "amber")
 
 cols = st.columns(4)
 with cols[0]:
-    kpi("Средно литри / курс", format_number(total_liters / count, 1) if count else "—", "л")
+    kpi("Средно литри / курс", format_number(total_liters / count, 1) if count else "—", "литра на курс", "◉", "teal")
 with cols[1]:
-    kpi("Среден разход / курс", format_number(total_cost / count, 2) if count else "—", "€")
+    kpi("Среден разход / курс", format_number(total_cost / count, 2) if count else "—", "€ на курс", "€", "violet")
 with cols[2]:
-    kpi("Разход / 1 000 л", format_number(total_cost / total_liters * 1000, 2) if total_liters else "—", "€")
+    kpi("Разход / 1 000 л", format_number(total_cost / total_liters * 1000, 2) if total_liters else "—", "€ за 1 000 литра", "↗", "amber")
 with cols[3]:
-    kpi("Допълнителни литри", format_number(tdf["ЛИТРИ_1"].sum() + tdf["ЛИТРИ_2"].sum()), "ЛИТРИ_1 + ЛИТРИ_2")
+    kpi("Допълнителни литри", format_number(tdf["ЛИТРИ_1"].sum() + tdf["ЛИТРИ_2"].sum()), "ЛИТРИ_1 + ЛИТРИ_2", "+", "blue")
 
 if tdf.empty:
     st.info("Няма курсове за избраните филтри.")
