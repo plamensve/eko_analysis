@@ -84,20 +84,44 @@ tdf = transport_df.loc[
     (transport_df["КУРС_ДАТА"] < pd.Timestamp(end_date) + pd.Timedelta(days=1))
 ].copy()
 
-# Cascading filters keep missing-value categories and default to every item.
+# Explicit filter controls: users can see their selection, search values, and reset.
+# Cascading options reflect selections made above without dropping missing labels.
 with st.sidebar:
+    st.markdown("### 🔎 Прецизирай резултатите")
+    st.caption("По подразбиране се показват всички курсове. Избери конкретни стойности, за да стесниш резултатите.")
+    if st.button("↺ Покажи всички", use_container_width=True, help="Изчиства ограниченията по търговец, превозвач, шофьор и влекач."):
+        for key in ("ТЪРГОВЕЦ", "ПРЕВОЗВАЧ", "ШОФЬОР", "ВЛЕКАЧ"):
+            st.session_state[f"filter_{key}"] = []
+        st.rerun()
+
     filter_fields = [
-        ("ТЪРГОВЕЦ", "Търговец"),
-        ("ПРЕВОЗВАЧ", "Превозвач"),
-        ("ШОФЬОР", "Шофьор"),
-        ("ВЛЕКАЧ", "Влекач"),
+        ("ТЪРГОВЕЦ", "Търговец", "Кой търговец е организирал курса?"),
+        ("ПРЕВОЗВАЧ", "Превозвач", "Коя транспортна фирма е изпълнила курса?"),
+        ("ШОФЬОР", "Шофьор", "Кой е управлявал превозното средство?"),
+        ("ВЛЕКАЧ", "Влекач", "Кой влекач е използван за курса?"),
     ]
-    for field, label in filter_fields:
+    active_filters = 0
+    for field, label, explanation in filter_fields:
         options = sorted(tdf[field].dropna().unique().tolist())
-        selected = st.multiselect(label, options, default=options, key=f"transport_{field}")
-        tdf = tdf.loc[tdf[field].isin(selected)]
+        key = f"filter_{field}"
+        # An empty selection means All, even if cascading options change.
+        saved = st.session_state.get(key, [])
+        st.session_state[key] = [value for value in saved if value in options]
+        selected = st.multiselect(
+            label,
+            options,
+            key=key,
+            placeholder=f"Всички ({len(options)}) — избери за филтриране",
+            help=explanation + " Можеш да търсиш чрез писане. Без избор = всички.",
+        )
+        if selected:
+            tdf = tdf.loc[tdf[field].isin(selected)]
+            active_filters += 1
+            st.caption(f"✓ Избрани: {len(selected)} от {len(options)}")
+        else:
+            st.caption(f"Всички {len(options)} стойности са включени")
     st.divider()
-    st.caption("Изборът на филтри важи за всички показатели и таблици.")
+    st.caption(f"Активни филтри: {active_filters} от 4 · Намерени курсове: {len(tdf):,}")
 
 def format_number(value, decimals=0):
     return f"{value:,.{decimals}f}".replace(",", " ")
