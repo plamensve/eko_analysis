@@ -328,7 +328,7 @@ def render_cards():
         label.title = 'Натисни за сортиране';
         label.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;' +
                              'white-space:nowrap;cursor:pointer;font-weight:650;';
-        label.onclick = (e) => { e.stopPropagation(); params.progressSort(false); };
+        label.onclick = (e) => { e.stopPropagation(); if (params.progressSort) params.progressSort(false); };
         const remove = document.createElement('button');
         remove.type = 'button'; remove.textContent = '×';
         remove.title = 'Изтрий тази колона (две натискания за потвърждение)';
@@ -344,7 +344,10 @@ def render_cards():
                 remove.style.background = '#ffccd1';
                 return;
             }
-            const anchor = params.api.getDisplayedRowAtIndex(0);
+            let anchor = params.api.getDisplayedRowAtIndex(0);
+            if (!anchor) params.api.forEachNode(node => {
+                if (!anchor && !node.rowPinned) anchor = node;
+            });
             if (anchor) {
                 anchor.setDataValue('_grid_action',
                     'delete_column:' + encodeURIComponent(params.column.getColId()));
@@ -383,7 +386,10 @@ def render_cards():
                 e.preventDefault();
                 const name = input.value.trim();
                 if (!name) { input.title = 'Въведи име'; input.focus(); return; }
-                const anchor = params.api.getDisplayedRowAtIndex(0);
+                let anchor = params.api.getDisplayedRowAtIndex(0);
+            if (!anchor) params.api.forEachNode(node => {
+                if (!anchor && !node.rowPinned) anchor = node;
+            });
                 if (anchor) {
                     anchor.setDataValue('_grid_action',
                         'add_column:' + encodeURIComponent(name));
@@ -414,7 +420,10 @@ def render_cards():
         if (!params.colDef || params.colDef.field !== '_grid_action') return;
         const event = params.event;
         if (event) { event.preventDefault(); event.stopPropagation(); }
-        const anchor = params.api.getDisplayedRowAtIndex(0);
+        let anchor = params.api.getDisplayedRowAtIndex(0);
+            if (!anchor) params.api.forEachNode(node => {
+                if (!anchor && !node.rowPinned) anchor = node;
+            });
         if (!anchor) return;
         if (params.node.rowPinned) {
             anchor.setDataValue('_grid_action', 'add_row');
