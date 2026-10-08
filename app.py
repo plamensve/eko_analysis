@@ -17,22 +17,33 @@ st.markdown("""
 [data-testid="stHeader"] button:hover {background: #29435f; color: #ffffff;}
 
 .block-container {max-width: 1600px; padding-top: 5.5rem; padding-bottom: 3rem;}
-[data-testid="stSidebar"] {background: #10243e;}
+[data-testid="stSidebar"] {
+    background:linear-gradient(165deg,#050a12 0%,#0a1727 55%,#102637 100%);
+    border-right:1px solid #243b50;}
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h2,
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h3,
-[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p,
-[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {color: #f0f5ff;}
-/* White controls keep dark text, including buttons, selected values and inputs. */
-[data-testid="stSidebar"] [data-testid="stButton"] button,
-[data-testid="stSidebar"] [data-testid="stButton"] button p,
-[data-testid="stSidebar"] [data-baseweb="select"] *,
-[data-testid="stSidebar"] [data-baseweb="input"] input {color: #17233b;}
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {color:#edf4fc;}
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {color:#afc2d5;}
 [data-testid="stSidebar"] [data-baseweb="select"] > div,
-[data-testid="stSidebar"] [data-baseweb="input"],
-[data-testid="stSidebar"] [data-baseweb="input"] input,
-[data-testid="stSidebar"] [data-testid="stButton"] button {background-color: #ffffff;}
+[data-testid="stSidebar"] [data-baseweb="input"] {
+    background:#0d1d2e;border-color:#35506b;border-radius:10px;}
+[data-testid="stSidebar"] [data-baseweb="select"] *,
+[data-testid="stSidebar"] [data-baseweb="input"] input {color:#edf4fc;}
+[data-testid="stSidebar"] [data-baseweb="input"] input {background:#0d1d2e;}
+[data-testid="stSidebar"] input::placeholder {color:#9bb1c8;opacity:1;}
+[data-testid="stSidebar"] [data-baseweb="tag"] {background:#22435f;color:#ffffff;}
+[data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within,
+[data-testid="stSidebar"] [data-baseweb="input"]:focus-within {
+    border-color:#72add0;box-shadow:0 0 0 1px #72add0;}
+[data-testid="stSidebar"] [data-testid="stButton"] button {
+    background:linear-gradient(120deg,#152c42,#244b63);
+    border:1px solid #446d88;border-radius:10px;color:#ffffff;}
+[data-testid="stSidebar"] [data-testid="stButton"] button p {color:#ffffff;}
+[data-testid="stSidebar"] [data-testid="stButton"] button:hover {
+    background:linear-gradient(120deg,#20405b,#30617b);border-color:#85b5d1;}
+[data-testid="stSidebar"] hr {border-color:#30445a;}
 h1, h2, h3 {color: #17233b; letter-spacing: -0.025em;}
 .hero {position:relative;overflow:hidden;background:linear-gradient(112deg,#10243f 0%,#173f63 61%,#23627e 100%);
        border:1px solid rgba(255,255,255,.16);border-radius:22px;padding:32px 38px;
