@@ -319,100 +319,117 @@ def render_cards():
     # These are real, inline grid controls: no Streamlit forms or dialogs.
     # The final column header accepts a new field name; the pinned bottom
     # row adds a blank record. A small x on each header/row deletes in place.
+    # AG Grid's React wrapper cannot render a bare HTMLDivElement returned
+    # from a JsCode function (React error #31). JS *classes* implementing
+    # init/getGui are supported by AG Grid as vanilla JS components.
     header_js = JsCode("""
-    function(params) {
-        const root = document.createElement('div');
-        root.style.cssText = 'display:flex;align-items:center;gap:5px;width:100%;height:100%;min-width:0;';
-        const label = document.createElement('span');
-        label.textContent = params.displayName || params.column.getColId();
-        label.title = 'Натисни за сортиране';
-        label.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;' +
-                             'white-space:nowrap;cursor:pointer;font-weight:650;';
-        label.onclick = (e) => { e.stopPropagation(); if (params.progressSort) params.progressSort(false); };
-        const remove = document.createElement('button');
-        remove.type = 'button'; remove.textContent = '×';
-        remove.title = 'Изтрий тази колона (две натискания за потвърждение)';
-        remove.style.cssText = 'flex:none;color:#ac3341;border:0;background:transparent;' +
-                              'cursor:pointer;font-size:18px;font-weight:700;padding:1px 5px;';
-        let confirm = false;
-        remove.onclick = (e) => {
-            e.preventDefault(); e.stopPropagation();
-            if (!confirm) {
-                confirm = true;
-                remove.textContent = '✓';
-                remove.title = 'Натисни отново за окончателно изтриване на колоната';
-                remove.style.background = '#ffccd1';
-                return;
-            }
-            let anchor = params.api.getDisplayedRowAtIndex(0);
-            if (!anchor) params.api.forEachNode(node => {
-                if (!anchor && !node.rowPinned) anchor = node;
-            });
-            if (anchor) {
-                anchor.setDataValue('_grid_action',
+    class CardColumnHeader {
+        init(params) {
+            const root = document.createElement('div');
+            root.style.cssText = 'display:flex;align-items:center;gap:5px;width:100%;height:100%;min-width:0;';
+            const label = document.createElement('span');
+            label.textContent = params.displayName || params.column.getColId();
+            label.title = 'Натисни за сортиране';
+            label.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;' +
+                                 'white-space:nowrap;cursor:pointer;font-weight:650;';
+            label.onclick = e => {
+                e.stopPropagation();
+                if (params.progressSort) params.progressSort(false);
+            };
+            const remove = document.createElement('button');
+            remove.type = 'button'; remove.textContent = '×';
+            remove.title = 'Изтрий колоната — натисни два пъти';
+            remove.style.cssText = 'flex:none;color:#ac3341;border:0;background:transparent;' +
+                                  'cursor:pointer;font-size:18px;font-weight:700;padding:1px 5px;';
+            let confirm = false;
+            remove.onclick = e => {
+                e.preventDefault(); e.stopPropagation();
+                if (!confirm) {
+                    confirm = true;
+                    remove.textContent = '✓';
+                    remove.title = 'Натисни отново за окончателно изтриване';
+                    remove.style.background = '#ffccd1';
+                    return;
+                }
+                let anchor = params.api.getDisplayedRowAtIndex(0);
+                if (!anchor) params.api.forEachNode(node => {
+                    if (!anchor && !node.rowPinned) anchor = node;
+                });
+                if (anchor) anchor.setDataValue('_grid_action',
                     'delete_column:' + encodeURIComponent(params.column.getColId()));
-            }
-        };
-        root.appendChild(label); root.appendChild(remove);
-        return root;
+            };
+            root.appendChild(label); root.appendChild(remove);
+            this.eGui = root;
+        }
+        getGui() { return this.eGui; }
+        refresh() { return false; }
     }
     """)
     plus_header_js = JsCode("""
-    function(params) {
-        const root = document.createElement('div');
-        root.style.cssText = 'display:flex;align-items:center;gap:3px;width:100%;height:100%;';
-        const button = document.createElement('button');
-        button.type = 'button'; button.textContent = '＋ Колона';
-        button.title = 'Добави колона директно тук';
-        button.style.cssText = 'width:100%;border:1px dashed #5683ac;border-radius:6px;' +
-                               'background:#eaf4ff;color:#145184;font-weight:700;cursor:pointer;';
-        const input = document.createElement('input');
-        input.type = 'text'; input.placeholder = 'Име на колона';
-        input.title = 'Напиши име и натисни Enter (Esc за отказ)';
-        input.maxLength = 100;
-        input.style.cssText = 'width:100%;min-width:0;display:none;border:1px solid #5b9bc7;' +
-                              'border-radius:5px;padding:4px;font-size:12px;color:#12243a;background:white;';
-        function reset() {
-            input.value = ''; input.style.display = 'none'; button.style.display = '';
-        }
-        button.onclick = e => {
-            e.preventDefault(); e.stopPropagation();
-            button.style.display = 'none'; input.style.display = ''; input.focus();
-        };
-        input.onkeydown = e => {
-            e.stopPropagation();
-            if (e.key === 'Escape') { e.preventDefault(); reset(); }
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const name = input.value.trim();
-                if (!name) { input.title = 'Въведи име'; input.focus(); return; }
-                let anchor = params.api.getDisplayedRowAtIndex(0);
-            if (!anchor) params.api.forEachNode(node => {
-                if (!anchor && !node.rowPinned) anchor = node;
-            });
-                if (anchor) {
-                    anchor.setDataValue('_grid_action',
+    class CardAddColumnHeader {
+        init(params) {
+            const root = document.createElement('div');
+            root.style.cssText = 'display:flex;align-items:center;gap:3px;width:100%;height:100%;';
+            const button = document.createElement('button');
+            button.type = 'button'; button.textContent = '＋ Колона';
+            button.title = 'Добави колона директно в таблицата';
+            button.style.cssText = 'width:100%;border:1px dashed #5683ac;border-radius:6px;' +
+                                   'background:#eaf4ff;color:#145184;font-weight:700;cursor:pointer;';
+            const input = document.createElement('input');
+            input.type = 'text'; input.placeholder = 'Име на колона';
+            input.title = 'Въведи име и натисни Enter, Esc за отказ';
+            input.maxLength = 100;
+            input.style.cssText = 'width:100%;min-width:0;display:none;border:1px solid #5b9bc7;' +
+                                  'border-radius:5px;padding:4px;font-size:12px;color:#12243a;background:white;';
+            const reset = () => {
+                input.value = ''; input.style.display = 'none'; button.style.display = '';
+            };
+            button.onclick = e => {
+                e.preventDefault(); e.stopPropagation();
+                button.style.display = 'none'; input.style.display = ''; input.focus();
+            };
+            input.onkeydown = e => {
+                e.stopPropagation();
+                if (e.key === 'Escape') { e.preventDefault(); reset(); }
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const name = input.value.trim();
+                    if (!name) { input.title = 'Въведи име'; input.focus(); return; }
+                    let anchor = params.api.getDisplayedRowAtIndex(0);
+                    if (!anchor) params.api.forEachNode(node => {
+                        if (!anchor && !node.rowPinned) anchor = node;
+                    });
+                    if (anchor) anchor.setDataValue('_grid_action',
                         'add_column:' + encodeURIComponent(name));
+                    reset();
                 }
-                reset();
-            }
-        };
-        root.appendChild(button); root.appendChild(input);
-        return root;
+            };
+            root.appendChild(button); root.appendChild(input);
+            this.eGui = root;
+        }
+        getGui() { return this.eGui; }
+        refresh() { return false; }
     }
     """)
     row_action_js = JsCode("""
-    function(params) {
-        const element = document.createElement('span');
-        const isNew = !!params.node.rowPinned;
-        const confirming = !!params.node._confirmDelete;
-        element.textContent = isNew ? '＋ Нов ред' : (confirming ? '✓ Изтрий?' : '×');
-        element.title = isNew ? 'Добави нов ред' : (
-            confirming ? 'Натисни пак за изтриване' : 'Изтрий реда — потвърди с второ натискане');
-        element.style.cssText = 'font-weight:700;cursor:pointer;color:' +
-            (confirming ? '#c02942' : '#176b9e') + ';font-size:' +
-            (isNew ? '13px' : '19px') + ';white-space:nowrap;';
-        return element;
+    class CardRowActions {
+        init(params) {
+            this.eGui = document.createElement('span');
+            this.eGui.style.cssText = 'font-weight:700;cursor:pointer;white-space:nowrap;';
+            this.refresh(params);
+        }
+        getGui() { return this.eGui; }
+        refresh(params) {
+            const isNew = !!params.node.rowPinned;
+            const confirming = !!params.node._confirmDelete;
+            this.eGui.textContent = isNew ? '＋ Нов ред' :
+                                   (confirming ? '✓ Изтрий?' : '×');
+            this.eGui.title = isNew ? 'Добави ред' :
+                (confirming ? 'Натисни пак за изтриване' : 'Изтрий реда с потвърждение');
+            this.eGui.style.color = confirming ? '#c02942' : '#176b9e';
+            this.eGui.style.fontSize = isNew ? '13px' : '19px';
+            return true;
+        }
     }
     """)
     cell_click_js = JsCode("""
@@ -421,9 +438,9 @@ def render_cards():
         const event = params.event;
         if (event) { event.preventDefault(); event.stopPropagation(); }
         let anchor = params.api.getDisplayedRowAtIndex(0);
-            if (!anchor) params.api.forEachNode(node => {
-                if (!anchor && !node.rowPinned) anchor = node;
-            });
+        if (!anchor) params.api.forEachNode(node => {
+            if (!anchor && !node.rowPinned) anchor = node;
+        });
         if (!anchor) return;
         if (params.node.rowPinned) {
             anchor.setDataValue('_grid_action', 'add_row');
