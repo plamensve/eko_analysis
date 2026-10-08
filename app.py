@@ -452,6 +452,11 @@ st.html(
     '.course-details td {background:#10243e;color:#ffffff;white-space:nowrap;}'
     '.course-details tbody tr:nth-child(even) td {background:#152b46;}'
     '.course-details tbody tr:hover td {background:#234263;}'
+    '.course-details th {background:#244e78;font-size:14px;letter-spacing:.02em;'
+    'padding-top:16px;padding-bottom:16px;border-bottom:2px solid #ffffff;}'
+    '.course-details th:not(:last-child) {border-right:1px solid #ffffff;}'
+    '.course-details td:not(:last-child) {border-right:1px solid rgba(255,255,255,.55);}'
+
     '</style>'
     '<div class="course-details" role="region" aria-label="Детайли по курсове" tabindex="0">'
     + display_table.to_html(index=False, escape=True, border=0, na_rep="—")
