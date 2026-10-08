@@ -55,6 +55,10 @@ h1, h2, h3 {color: #17233b; letter-spacing: -0.025em;}
 @media (prefers-reduced-motion:reduce) {.kpi{transition:none}.kpi:hover{transform:none}}
 .section-head {font-size: 19px; font-weight: 750; color: #192d49; margin: 30px 0 13px;}
 .filter-summary {color: #66758c; margin: 5px 0 20px; font-size: 13px;}
+.chart-period {display:inline-block;margin:-3px 0 12px;padding:9px 14px;
+    background:#eaf2fd;border:1px solid #d4e4f7;border-radius:10px;
+    color:#29486a;font-size:13px;font-weight:500;}
+.chart-period strong {font-weight:750;color:#173955;}
 .chart-filter-context {display:flex;flex-wrap:wrap;gap:8px;margin:15px 0 20px;}
 .chart-chip {display:inline-block;background:linear-gradient(125deg,#fff,#f0f5fc);
   border:1px solid #dae5f3;border-radius:999px;padding:8px 12px;
@@ -219,6 +223,11 @@ if tdf.empty:
 
 # The chart always uses the fully filtered tdf, just like the KPI cards and table.
 st.markdown('<div class="section-head">Дневна тенденция на транспорта</div>', unsafe_allow_html=True)
+st.markdown(
+    f'<div class="chart-period">📅 Отчетен период: '
+    f'<strong>{start_date:%d.%m.%Y} – {end_date:%d.%m.%Y}</strong></div>',
+    unsafe_allow_html=True,
+)
 st.caption(
     "Всяка колона представя общите данни за един ден. "
     "Стойностите се преизчисляват автоматично при промяна на периода, "
@@ -295,6 +304,7 @@ fig.add_bar(
     x=daily["Дата"],
     y=daily[metric_field],
     marker_color=bar_color,
+    width=0.82 * 24 * 60 * 60 * 1000,  # 82% of one calendar day on a date axis
     marker_line_width=0,
     customdata=daily[["литри", "курсове", "километри", "разход"]].to_numpy(),
     hovertemplate=(
@@ -313,7 +323,7 @@ fig.update_layout(
     plot_bgcolor="#ffffff",
     font=dict(family="Arial, sans-serif", color="#34445c", size=12),
     showlegend=False,
-    bargap=0.32,
+    bargap=0.12,
     hoverlabel=dict(bgcolor="#172c45", font_color="#ffffff"),
     xaxis=dict(
         title=None,
