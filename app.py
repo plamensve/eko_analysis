@@ -301,13 +301,24 @@ metric_options = {
     "Пробег": ("километри", "км", "#8169c6"),
     "Транспортни разходи": ("разход", "€", "#cc903f"),
 }
-metric_name = st.selectbox(
-    "Какво да показва графиката?",
+metric_name = st.segmented_control(
+    "Показател на графиката",
     list(metric_options),
-    index=0,
+    default="Превозени литри",
+    selection_mode="single",
     key="transport_daily_metric",
-    help="Избери показател. Всички стойности използват същите филтри като ключовите показатели.",
+    help="Избери показател. Графиката запазва текущия период и всички активни филтри.",
+    width="stretch",
 )
+metric_name = metric_name or "Превозени литри"
+metric_explanations = {
+    "Превозени литри": "Общо превозени литри за всеки ден.",
+    "Брой курсове": "Брой изпълнени курсове за всеки ден.",
+    "Пробег": "Общ пробег в километри за всеки ден.",
+    "Транспортни разходи": "Общи транспортни разходи в евро за всеки ден.",
+}
+st.caption(metric_explanations[metric_name] + " Показани са само курсовете, включени в текущите филтри.")
+
 metric_field, metric_unit, bar_color = metric_options[metric_name]
 
 fig = go.Figure()
