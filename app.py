@@ -69,7 +69,7 @@ st.markdown("""
 }
 /* Streamlit's SVG help icon varied between versions; keep its native
    tooltip behavior and draw a legible, deterministic white question mark. */
-[data-testid="stSidebar"] [data-testid="stTooltipIcon"] {
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] [data-testid="stTooltipIcon"] {
     position:relative;
     display:inline-flex !important;
     align-items:center;
@@ -87,11 +87,11 @@ st.markdown("""
     opacity:1 !important;
     cursor:help;
 }
-[data-testid="stSidebar"] [data-testid="stTooltipIcon"] svg,
-[data-testid="stSidebar"] [data-testid="stTooltipIcon"] [data-testid="stIconMaterial"] {
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] [data-testid="stTooltipIcon"] svg,
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] [data-testid="stTooltipIcon"] [data-testid="stIconMaterial"] {
     opacity:0 !important;
 }
-[data-testid="stSidebar"] [data-testid="stTooltipIcon"]::after {
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] [data-testid="stTooltipIcon"]::after {
     content:"?";
     position:absolute;
     inset:0;
@@ -105,7 +105,7 @@ st.markdown("""
     color:#fff;
     pointer-events:none;
 }
-[data-testid="stSidebar"] [data-testid="stTooltipIcon"]:focus-visible {
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] [data-testid="stTooltipIcon"]:focus-visible {
     outline:2px solid #b4e1ff;
     outline-offset:3px;
 }
@@ -301,7 +301,7 @@ with tab_analysis:
     with st.sidebar:
         st.markdown("### 🔎 Прецизирай резултатите")
         st.caption("Без избор = всички. По подразбиране е избран търговец Vesela Nikolova.")
-        if st.button("↺ Покажи всички", use_container_width=True, key="transport_reset_filters", help="Изчиства ограниченията по търговец, превозвач, шофьор и влекач."):
+        if st.button("↺ Покажи всички", width="stretch", key="transport_reset_filters"):
             for key in ("ТЪРГОВЕЦ", "ПРЕВОЗВАЧ", "ШОФЬОР", "ВЛЕКАЧ"):
                 st.session_state[f"filter_{key}"] = []
             st.rerun()
