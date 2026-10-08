@@ -9,6 +9,7 @@ import hashlib
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
@@ -213,7 +214,7 @@ def render_cards():
             if new_value != str(whole.at[index, col]):
                 whole.at[index, col] = new_value
                 changes += 1
-                whole.at[index, UPDATED] = datetime.now().astimezone().isoformat(timespec="seconds")
+                whole.at[index, UPDATED] = datetime.now(ZoneInfo("Europe/Sofia")).isoformat(timespec="seconds")
     if changes:
         st.session_state.cards_tables[selected] = whole
         st.toast(f"Записани {changes} промени в текущата сесия.")
@@ -229,7 +230,7 @@ def render_cards():
             if not any(x.strip() for x in values.values()):
                 st.warning("Попълнете поне едно поле.")
             else:
-                now = datetime.now().astimezone().isoformat(timespec="seconds")
+                now = datetime.now(ZoneInfo("Europe/Sofia")).isoformat(timespec="seconds")
                 row = {**values, CREATED: now, UPDATED: now}
                 st.session_state.cards_tables[selected] = pd.concat(
                     [whole, pd.DataFrame([row])], ignore_index=True)
