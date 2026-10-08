@@ -133,21 +133,30 @@ def workbook_bytes(tables, meta):
     return out.getvalue()
 
 
-def load_source():
+def load_initial_source():
+    """The untouched first import is kept in private Secrets (or a local file).
+
+    Uploading an edited workbook never replaces this recovery copy.
+    """
     try:
         encoded = st.secrets.get("CARDS_WORKBOOK_B64")
     except (FileNotFoundError, KeyError):
         encoded = None
-    source = None
     if encoded:
         try:
-            source = base64.b64decode(encoded, validate=True)
+            return base64.b64decode(encoded, validate=True)
         except (ValueError, TypeError):
             st.error("Невалиден CARDS_WORKBOOK_B64 в Streamlit Secrets.")
             return None
-    elif WORKBOOK.is_file():
-        source = WORKBOOK.read_bytes()
-    # An uploaded newer workbook always overrides the configured initial copy.
+    if WORKBOOK.is_file():
+        return WORKBOOK.read_bytes()
+    return None
+
+
+def load_source():
+    source = load_initial_source()
+    # A user-uploaded newer workbook takes precedence for current work,
+    # but never overrides the original backup used by the restore button.
     uploaded = st.file_uploader(
         "Зареди нова версия на регистъра (Excel)",
         type=["xlsx"], key="cards_replace_workbook",
@@ -155,7 +164,6 @@ def load_source():
     if uploaded is not None:
         source = uploaded.getvalue()
     return source
-
 
 def render_cards():
     st.markdown("""
@@ -192,6 +200,87 @@ def render_cards():
                "изтеглете актуализирания Excel и при следващото отваряне го заредете отново. "
                "Streamlit Secrets не се актуализира автоматично.")
     selected = st.selectbox("Горивна верига / лист", list(tables), key="cards_sheet")
+
+    # Restore data from the original first import, not from the currently
+    # uploaded (possibly edited/deleted) workbook or session-state tables.
+    with st.expander("↺ Възстанови първоначалните данни от Excel"):
+        st.write("Върни всички изтрити редове и колони от началния импорт.")
+        st.warning(
+            "Възстановяването ЗАМЕНЯ текущото съдържание в избраните листове. "
+            "Нови редове, колони, редакции и оцветявания в тях ще бъдат загубени. "
+            "Ако искаш да ги запазиш, първо изтегли текущия Excel от бутона по-долу."
+        )
+        with st.form("cards_restore_initial_import"):
+            restore_scope = st.radio(
+                "Какво да възстановя?",
+                ["Всички листове от началния импорт", "Само текущия лист"],
+                index=0,
+            )
+            confirm_restore = st.checkbox(
+                "Потвърждавам, че искам да заменя текущите данни "
+                "с първоначално импортираните."
+            )
+            restore_clicked = st.form_submit_button(
+                "↺ Възстанови оригиналните данни",
+                type="primary",
+                use_container_width=True,
+            )
+        if restore_clicked:
+            if not confirm_restore:
+                st.error("Постави отметка за потвърждение преди възстановяване.")
+            else:
+                initial_bytes = load_initial_source()
+                if not initial_bytes:
+                    st.error(
+                        "Липсва резервно копие на първоначалния Excel в Streamlit Secrets. "
+                        "Зареди оригиналния файл в Secrets, за да възстановиш данните."
+                    )
+                else:
+                    try:
+                        raw_sheets = parse_workbook(initial_bytes)
+                        chosen_sheets = (
+                            list(raw_sheets)
+                            if restore_scope == "Всички листове от началния импорт"
+                            else [selected]
+                        )
+                        if any(name not in raw_sheets for name in chosen_sheets):
+                            raise ValueError("Избраният лист липсва в първоначалния Excel.")
+                        recovered = {
+                            name: table_from_sheet(raw_sheets[name], name)
+                            for name in chosen_sheets
+                        }
+                    except Exception as exc:
+                        st.error(f"Неуспешно възстановяване: {exc}")
+                    else:
+                        if restore_scope == "Всички листове от началния импорт":
+                            st.session_state.cards_tables = {
+                                name: recovered[name][0].copy(deep=True)
+                                for name in chosen_sheets
+                            }
+                            st.session_state.cards_meta = {
+                                name: (recovered[name][1], recovered[name][2])
+                                for name in chosen_sheets
+                            }
+                        else:
+                            frame, legend, labels = recovered[selected]
+                            st.session_state.cards_tables[selected] = frame.copy(deep=True)
+                            st.session_state.cards_meta[selected] = (legend, labels)
+                        for name in chosen_sheets:
+                            st.session_state.pop(f"cards_companies_{name}", None)
+                            st.session_state.pop(f"cards_search_{name}", None)
+                        st.session_state.cards_version += 1
+                        count = sum(len(recovered[name][0]) for name in chosen_sheets)
+                        st.session_state.cards_restore_notice = (
+                            f"Възстановени са {count} записа в "
+                            f"{len(chosen_sheets)} лист(а) от първоначалния импорт."
+                        )
+                        st.rerun()
+
+    notice = st.session_state.pop("cards_restore_notice", None)
+    if notice:
+        st.success(notice)
+
+    tables = st.session_state.cards_tables
     whole = tables[selected]
     if not len(whole.columns):
         st.info("В този лист няма таблица с колони.")
