@@ -666,10 +666,95 @@ def render_cards():
     options['suppressContextMenu'] = True
     options['suppressBrowserContextMenu'] = True
     options['rowSelection'] = 'single'
+    # Keep resizing entirely inside the AG Grid component: no Streamlit rerun
+    # while dragging, so cell edits, filters and selection are not interrupted.
+    resize_js = JsCode("""
+    function(params) {
+        const container = document.getElementById('gridContainer');
+        if (!container || container.querySelector('.cards-vertical-resizer')) return;
+        const minimum = 300, maximum = 1600;
+        const storageKey = 'eko_cards_table_height_v1';
+        container.style.position = 'relative';
+        container.style.boxSizing = 'border-box';
+        container.style.paddingBottom = '18px';
+
+        const grip = document.createElement('div');
+        grip.className = 'cards-vertical-resizer';
+        grip.setAttribute('role', 'separator');
+        grip.setAttribute('aria-label', 'Промени височината на таблицата');
+        grip.title = 'Хвани и плъзни нагоре или надолу, за да промениш височината';
+        grip.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:18px;' +
+            'z-index:50;display:flex;align-items:center;justify-content:center;' +
+            'background:linear-gradient(180deg,#e9f1f9,#cbddec);' +
+            'border-top:1px solid #8eabc4;border-bottom:1px solid #9ab4cb;' +
+            'cursor:ns-resize;touch-action:none;user-select:none;box-sizing:border-box;';
+        const marker = document.createElement('span');
+        marker.textContent = '━━━━  ↕  Плъзни за височина  ━━━━';
+        marker.style.cssText = 'color:#285575;font-size:11px;font-weight:700;' +
+            'pointer-events:none;line-height:1;letter-spacing:.035em;';
+        grip.appendChild(marker);
+        container.appendChild(grip);
+
+        function applyHeight(value) {
+            const height = Math.max(minimum, Math.min(maximum, Math.round(value)));
+            container.style.height = height + 'px';
+            // Streamlit custom components live in an iframe. Notify the host
+            // when the content grows or it would be clipped at the old height.
+            window.parent.postMessage({
+                isStreamlitMessage: true,
+                type: 'streamlit:setFrameHeight',
+                height: height
+            }, '*');
+            return height;
+        }
+        try {
+            const stored = Number(window.sessionStorage.getItem(storageKey));
+            if (stored >= minimum && stored <= maximum) applyHeight(stored);
+        } catch (_) { /* Session storage may be blocked by browser settings. */ }
+
+        let drag = null;
+        grip.onpointerdown = event => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            drag = {
+                pointerId: event.pointerId,
+                startY: event.clientY,
+                startHeight: container.getBoundingClientRect().height
+            };
+            grip.setPointerCapture(event.pointerId);
+            document.documentElement.style.cursor = 'ns-resize';
+            document.documentElement.style.userSelect = 'none';
+            marker.textContent = '↕  Пусни, за да запазиш височината';
+        };
+        grip.onpointermove = event => {
+            if (!drag || event.pointerId !== drag.pointerId) return;
+            applyHeight(drag.startHeight + event.clientY - drag.startY);
+        };
+        const finish = event => {
+            if (!drag || event.pointerId !== drag.pointerId) return;
+            drag = null;
+            document.documentElement.style.cursor = '';
+            document.documentElement.style.userSelect = '';
+            marker.textContent = '━━━━  ↕  Плъзни за височина  ━━━━';
+            const current = container.getBoundingClientRect().height;
+            try {
+                window.sessionStorage.setItem(storageKey, String(Math.round(current)));
+            } catch (_) { /* Resizing still works without storage. */ }
+            if (grip.hasPointerCapture(event.pointerId)) {
+                grip.releasePointerCapture(event.pointerId);
+            }
+        };
+        grip.onpointerup = finish;
+        grip.onpointercancel = finish;
+    }
+    """)
+    options['onGridReady'] = resize_js
+
     options['pinnedBottomRowData'] = [
         {**{column: '' for column in display.columns},
          '_row_id': -2, '_grid_action': '＋ Нов ред'}
     ]
+    st.caption("↕ Хвани долната лента на таблицата и я плъзни с мишката, за да промениш височината.")
     response = AgGrid(
         display, gridOptions=options,
         key=f"cards_grid_{selected}_{st.session_state.cards_version}",
