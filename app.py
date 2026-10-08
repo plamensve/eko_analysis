@@ -128,6 +128,15 @@ h1, h2, h3 {color: #17233b; letter-spacing: -0.025em;}
 .chart-chip strong {color:#173955;}
 
 [data-testid="stDataFrame"] {border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden;}
+[data-testid="stTooltipIcon"] {
+    color: #fff !important;
+    border: 1px solid #fff !important;
+    border-radius: 50%;
+    background: #173f63;
+}
+[data-testid="stTooltipIcon"] svg, [data-testid="stTooltipIcon"] span {
+    color: #fff !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
