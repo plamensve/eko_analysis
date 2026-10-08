@@ -144,40 +144,21 @@ st.markdown("""
     border-color:#7bbde9 !important;
     box-shadow:0 0 0 2px rgba(123,189,233,.25) !important;
 }
-/* Let Streamlit size the button; forcing width:100% plus display:flex
-   on the button caused a shrink-to-content cycle and vertical text wrapping. */
-[data-testid="stSidebar"] [data-testid="stElementContainer"]:has([data-testid="stButton"]) {
-    width:100% !important;
-    min-width:0 !important;
-    align-self:stretch !important;
-}
-[data-testid="stSidebar"] [data-testid="stButton"] {
-    width:100% !important;
-    min-width:0 !important;
-}
+/* Rely on Streamlit's own stretch-width button layout. Only theme colors,
+   borders and focus states are customized to avoid a collapsed button box. */
 [data-testid="stSidebar"] [data-testid="stButton"] button {
-    min-height:42px;
-    box-sizing:border-box;
-    background:linear-gradient(115deg,#28516d,#34768d) !important;
-    color:#fff !important;
-    border:1px solid #5988a5 !important;
-    border-radius:10px !important;
-    box-shadow:none !important;
-    transition:background .15s ease,border-color .15s ease;
-    white-space:nowrap !important;
+    background:linear-gradient(115deg,#28516d,#34768d);
+    border:1px solid #5988a5;
+    border-radius:10px;
+    color:#fff;
 }
-[data-testid="stSidebar"] [data-testid="stButton"] button p {
-    color:#fff !important;
-    white-space:nowrap !important;
-    word-break:normal !important;
-    overflow-wrap:normal !important;
-}
+[data-testid="stSidebar"] [data-testid="stButton"] button p,
 [data-testid="stSidebar"] [data-testid="stButton"] button svg {
-    color:#fff !important;
+    color:#fff;
 }
 [data-testid="stSidebar"] [data-testid="stButton"] button:hover {
-    background:linear-gradient(115deg,#316786,#4388a0) !important;
-    border-color:#a6d5f0 !important;
+    background:linear-gradient(115deg,#316786,#4388a0);
+    border-color:#a6d5f0;
 }
 [data-testid="stSidebar"] [data-testid="stButton"] button:focus-visible {
     outline:2px solid #c3e9ff;
