@@ -502,7 +502,7 @@ with tab_analysis:
     metric_field, metric_unit, bar_color = metric_options[metric_name]
 
     average_windows = {
-        "1 ден": 1, "7 дни": 7, "14 дни": 14, "30 дни": 30, "90 дни": 90
+        "1 ден": 1, "3 дни": 3, "7 дни": 7, "14 дни": 14, "30 дни": 30, "90 дни": 90
     }
     average_label = st.segmented_control(
         "🔴 Период на червената линия (плъзгаща се средна)",
