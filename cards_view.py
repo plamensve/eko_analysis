@@ -1,5 +1,6 @@
 """Company/card register viewer. The uploaded workbook is never changed."""
 from io import BytesIO
+import base64
 from pathlib import Path
 
 import pandas as pd
@@ -22,10 +23,23 @@ def render_cards():
     </section>
     """, unsafe_allow_html=True)
 
-    source = WORKBOOK.read_bytes() if WORKBOOK.is_file() else None
+    source = None
+    # Store the original workbook privately rather than committing card PINs.
+    try:
+        encoded = st.secrets.get("CARDS_WORKBOOK_B64")
+    except (FileNotFoundError, KeyError):
+        encoded = None
+    if encoded:
+        try:
+            source = base64.b64decode(encoded, validate=True)
+        except (ValueError, TypeError):
+            st.error("Невалидно съдържание на CARDS_WORKBOOK_B64 в Streamlit Secrets.")
+            return
+    elif WORKBOOK.is_file():
+        source = WORKBOOK.read_bytes()
     if source is None:
         st.info("За да заредите списъка, изберете Excel файла „Еко_Списък_фирми.xlsx“. "
-                "Може и да го добавите в папка data/ на GitHub репото за постоянно зареждане.")
+                "За постоянно зареждане го добавете в Streamlit Secrets под ключ CARDS_WORKBOOK_B64.")
         upload = st.file_uploader("Excel файл със списъците", type=["xlsx"], key="cards_workbook")
         if upload is None:
             return
@@ -78,6 +92,7 @@ def render_cards():
         st.caption(f"Източник: {sheet_name} · {len(sheets)} листа в работната книга · "
                    "търсенето обхваща всички колони")
     st.dataframe(df, hide_index=True, use_container_width=True, height=550)
+    st.caption('Файлът може да съдържа номера на карти и ПИН кодове. Ограничете достъпа до приложението.')
     st.download_button(
         "⬇️ Изтегли показаните записи (CSV)",
         data=df.to_csv(index=False).encode("utf-8-sig"),
