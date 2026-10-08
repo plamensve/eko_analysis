@@ -69,6 +69,12 @@ h1, h2, h3 {color: #17233b; letter-spacing: -0.025em;}
 .kpi-value {font-size:clamp(21px,2vw,30px); color:#182d49; letter-spacing:-.035em;
             font-weight:780; margin-top:16px; line-height:1.18; overflow-wrap:anywhere; font-variant-numeric:tabular-nums;}
 .kpi-unit {font-size:12px; color:#6a7c91; margin-top:6px;}
+.liters-split {display:grid;grid-template-columns:1fr 1fr;margin-top:16px;}
+.liters-part {min-width:0;padding-right:12px;}
+.liters-part + .liters-part {border-left:1px solid #c2d6ef;padding-left:16px;padding-right:0;}
+.liters-value {color:#182d49;font-size:clamp(20px,1.6vw,27px);font-weight:780;
+    line-height:1.2;margin-top:7px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
+
 .kpi:before {content:""; position:absolute; left:0; top:21px; bottom:21px; width:3px;
              background:var(--kpi-accent); border-radius:0 3px 3px 0; opacity:.7;}
 @media (prefers-reduced-motion:reduce) {.kpi{transition:none}.kpi:hover{transform:none}}
@@ -234,7 +240,20 @@ with cols[1]:
 with cols[2]:
     kpi("Разход / 1 000 л", format_number(total_cost / total_liters * 1000, 2) if total_liters else "—", "€ за 1 000 литра", "↗", "amber")
 with cols[3]:
-    kpi("Допълнителни литри", format_number(tdf["ЛИТРИ_1"].sum() + tdf["ЛИТРИ_2"].sum()), "ЛИТРИ_1 + ЛИТРИ_2", "+", "blue")
+    st.markdown(
+        '<div class="kpi blue">'
+        '<div class="kpi-top"><div class="kpi-label">Допълнителни литри</div>'
+        '<span class="kpi-icon" aria-hidden="true">+</span></div>'
+        '<div class="liters-split">'
+        '<div class="liters-part"><div class="kpi-label">Литри 1</div>'
+        f'<div class="liters-value">{format_number(tdf["ЛИТРИ_1"].sum())}</div>'
+        '<div class="kpi-unit">литра</div></div>'
+        '<div class="liters-part"><div class="kpi-label">Литри 2</div>'
+        f'<div class="liters-value">{format_number(tdf["ЛИТРИ_2"].sum())}</div>'
+        '<div class="kpi-unit">литра</div></div>'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
 
 if tdf.empty:
     st.info("Няма курсове за избраните филтри.")
