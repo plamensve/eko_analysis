@@ -10,10 +10,21 @@ st.markdown("""
 .stApp {background: #f5f7fb; color: #17233b;}
 .block-container {max-width: 1600px; padding-top: 2rem; padding-bottom: 3rem;}
 [data-testid="stSidebar"] {background: #10243e;}
-[data-testid="stSidebar"] * {color: #f0f5ff;}
-[data-testid="stSidebar"] .stMultiSelect [data-baseweb="select"] *,
-[data-testid="stSidebar"] input {color: #17233b;}
-[data-testid="stSidebar"] [data-testid="stDateInput"] input {color: #17233b;}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h2,
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h3,
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p,
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {color: #f0f5ff;}
+/* White controls keep dark text, including buttons, selected values and inputs. */
+[data-testid="stSidebar"] [data-testid="stButton"] button,
+[data-testid="stSidebar"] [data-testid="stButton"] button p,
+[data-testid="stSidebar"] [data-baseweb="select"] *,
+[data-testid="stSidebar"] [data-baseweb="input"] input {color: #17233b;}
+[data-testid="stSidebar"] [data-baseweb="select"] > div,
+[data-testid="stSidebar"] [data-baseweb="input"],
+[data-testid="stSidebar"] [data-baseweb="input"] input,
+[data-testid="stSidebar"] [data-testid="stButton"] button {background-color: #ffffff;}
 h1, h2, h3 {color: #17233b; letter-spacing: -0.025em;}
 .hero {position:relative;overflow:hidden;background:linear-gradient(112deg,#10243f 0%,#173f63 61%,#23627e 100%);
        border:1px solid rgba(255,255,255,.16);border-radius:22px;padding:32px 38px;
@@ -317,11 +328,12 @@ fig.add_bar(
     ),
 )
 fig.update_layout(
+    template="plotly_dark",
     height=380,
     margin=dict(l=14, r=20, t=16, b=20),
-    paper_bgcolor="#ffffff",
-    plot_bgcolor="#ffffff",
-    font=dict(family="Arial, sans-serif", color="#34445c", size=12),
+    paper_bgcolor="#000000",
+    plot_bgcolor="#000000",
+    font=dict(family="Arial, sans-serif", color="#f0f5ff", size=12),
     showlegend=False,
     bargap=0.12,
     hoverlabel=dict(bgcolor="#172c45", font_color="#ffffff"),
@@ -332,18 +344,20 @@ fig.update_layout(
         tickangle=0,
         showgrid=False,
         showline=True,
-        linecolor="#dce4ed",
+        linecolor="#526781",
         range=[pd.Timestamp(start_date), pd.Timestamp(end_date) + pd.Timedelta(days=1)],
     ),
     yaxis=dict(
         title=f"{metric_name} ({metric_unit})",
         rangemode="tozero",
         tickformat=",~s",
-        gridcolor="#eaf0f6",
+        showgrid=True,
+        gridcolor="#3a3a3a",
+        gridwidth=1,
         zeroline=False,
     ),
 )
-st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+st.plotly_chart(fig, use_container_width=True, theme=None, config={"displaylogo": False})
 
 st.caption(
     f"За периода има {active_days} дни с курсове от общо "
