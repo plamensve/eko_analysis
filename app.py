@@ -36,33 +36,142 @@ st.markdown("""
     outline:2px solid #a5d5f3;outline-offset:2px;}
 
 .block-container {max-width: 1600px; padding-top: 5.5rem; padding-bottom: 3rem;}
+/* Consistent, accessible filter panel; scoped to the sidebar only. */
 [data-testid="stSidebar"] {
-    background:linear-gradient(112deg,#10243f 0%,#173f63 61%,#23627e 100%);
-    border-right:1px solid #54758e;}
+    background:linear-gradient(155deg,#10243f 0%,#183e60 54%,#23607d 100%);
+    border-right:1px solid #52758d;
+}
+[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+    background:transparent;
+}
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h2,
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h3,
-[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {color:#edf4fc;}
-[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {color:#c8d8e8;}
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
+    color:#f4f8ff;
+}
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {
+    color:#bed2e5;
+    font-size:12px;
+    line-height:1.55;
+}
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] {
+    display:flex;
+    align-items:center;
+    gap:6px;
+    min-height:22px;
+}
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
+    font-size:13px;
+    font-weight:650;
+    line-height:1.4;
+}
+/* Streamlit's SVG help icon varied between versions; keep its native
+   tooltip behavior and draw a legible, deterministic white question mark. */
+[data-testid="stSidebar"] [data-testid="stTooltipIcon"] {
+    position:relative;
+    display:inline-flex !important;
+    align-items:center;
+    justify-content:center;
+    flex:0 0 19px;
+    width:19px !important;
+    height:19px !important;
+    padding:0 !important;
+    margin-left:3px;
+    box-sizing:border-box;
+    color:#fff !important;
+    border:1.5px solid #fff !important;
+    border-radius:50% !important;
+    background:rgba(9,30,52,.35) !important;
+    opacity:1 !important;
+    cursor:help;
+}
+[data-testid="stSidebar"] [data-testid="stTooltipIcon"] svg,
+[data-testid="stSidebar"] [data-testid="stTooltipIcon"] [data-testid="stIconMaterial"] {
+    opacity:0 !important;
+}
+[data-testid="stSidebar"] [data-testid="stTooltipIcon"]::after {
+    content:"?";
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:Arial,Helvetica,sans-serif;
+    font-size:12px;
+    font-weight:800;
+    line-height:1;
+    color:#fff;
+    pointer-events:none;
+}
+[data-testid="stSidebar"] [data-testid="stTooltipIcon"]:focus-visible {
+    outline:2px solid #b4e1ff;
+    outline-offset:3px;
+}
+/* Light fields on the dark surface: readable dates and selected tags. */
 [data-testid="stSidebar"] [data-baseweb="select"] > div,
-[data-testid="stSidebar"] [data-baseweb="input"] {
-    background:#193950;border-color:#54758e;border-radius:10px;}
-[data-testid="stSidebar"] [data-baseweb="select"] *,
-[data-testid="stSidebar"] [data-baseweb="input"] input {color:#edf4fc;}
-[data-testid="stSidebar"] [data-baseweb="input"] input {background:#193950;}
-[data-testid="stSidebar"] input::placeholder {color:#9bb1c8;opacity:1;}
-[data-testid="stSidebar"] [data-baseweb="tag"] {background:#315e7b;color:#ffffff;}
+[data-testid="stSidebar"] [data-baseweb="input"],
+[data-testid="stSidebar"] [data-testid="stDateInput"] input {
+    background:#f3f7fd !important;
+    border-color:#b6c7d9 !important;
+    border-radius:10px !important;
+    box-shadow:none !important;
+}
+[data-testid="stSidebar"] [data-baseweb="select"] input,
+[data-testid="stSidebar"] [data-baseweb="input"] input,
+[data-testid="stSidebar"] [data-testid="stDateInput"] input {
+    color:#193650 !important;
+}
+[data-testid="stSidebar"] [data-baseweb="select"] svg {
+    color:#274965 !important;
+    fill:currentColor;
+}
+[data-testid="stSidebar"] [data-baseweb="select"] [data-baseweb="tag"] {
+    background:#2f70c8 !important;
+    border-radius:6px;
+}
+[data-testid="stSidebar"] [data-baseweb="select"] [data-baseweb="tag"] *,
+[data-testid="stSidebar"] [data-baseweb="select"] [data-baseweb="tag"] {
+    color:#fff !important;
+}
+[data-testid="stSidebar"] input::placeholder {
+    color:#70839c !important;
+    opacity:1;
+}
 [data-testid="stSidebar"] [data-baseweb="select"] > div:focus-within,
 [data-testid="stSidebar"] [data-baseweb="input"]:focus-within {
-    border-color:#72add0;box-shadow:0 0 0 1px #72add0;}
+    border-color:#7bbde9 !important;
+    box-shadow:0 0 0 2px rgba(123,189,233,.25) !important;
+}
 [data-testid="stSidebar"] [data-testid="stButton"] button {
-    background:linear-gradient(120deg,#2a536f,#39758a);
-    border:1px solid #446d88;border-radius:10px;color:#ffffff;}
-[data-testid="stSidebar"] [data-testid="stButton"] button p {color:#ffffff;}
+    min-height:42px;
+    width:100%;
+    box-sizing:border-box;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:linear-gradient(115deg,#28516d,#34768d) !important;
+    color:#fff !important;
+    border:1px solid #5988a5 !important;
+    border-radius:10px !important;
+    box-shadow:none !important;
+    outline:none;
+    transition:background .15s ease,border-color .15s ease;
+}
+[data-testid="stSidebar"] [data-testid="stButton"] button p,
+[data-testid="stSidebar"] [data-testid="stButton"] button svg {
+    color:#fff !important;
+}
 [data-testid="stSidebar"] [data-testid="stButton"] button:hover {
-    background:linear-gradient(120deg,#20405b,#30617b);border-color:#85b5d1;}
-[data-testid="stSidebar"] hr {border-color:#30445a;}
+    background:linear-gradient(115deg,#316786,#4388a0) !important;
+    border-color:#a6d5f0 !important;
+}
+[data-testid="stSidebar"] [data-testid="stButton"] button:focus-visible {
+    outline:2px solid #c3e9ff;
+    outline-offset:2px;
+}
+[data-testid="stSidebar"] hr { border-color:#456680; }
 h1, h2, h3 {color: #17233b; letter-spacing: -0.025em;}
 .hero {position:relative;overflow:hidden;background:linear-gradient(112deg,#10243f 0%,#173f63 61%,#23627e 100%);
        border:1px solid rgba(255,255,255,.16);border-radius:22px;padding:32px 38px;
@@ -128,15 +237,6 @@ h1, h2, h3 {color: #17233b; letter-spacing: -0.025em;}
 .chart-chip strong {color:#173955;}
 
 [data-testid="stDataFrame"] {border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden;}
-[data-testid="stTooltipIcon"] {
-    color: #fff !important;
-    border: 1px solid #fff !important;
-    border-radius: 50%;
-    background: #173f63;
-}
-[data-testid="stTooltipIcon"] svg, [data-testid="stTooltipIcon"] span {
-    color: #fff !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
