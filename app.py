@@ -15,7 +15,7 @@ st.markdown("""
 [data-testid="stHeader"] button svg {fill: currentColor;}
 [data-testid="stHeader"] button:hover {background: #29435f; color: #ffffff;}
 
-.block-container {max-width: 1600px; padding-top: 2rem; padding-bottom: 3rem;}
+.block-container {max-width: 1600px; padding-top: 5.5rem; padding-bottom: 3rem;}
 [data-testid="stSidebar"] {background: #10243e;}
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
