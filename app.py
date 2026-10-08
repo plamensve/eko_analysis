@@ -8,6 +8,13 @@ st.set_page_config(page_title="Транспортен анализ", page_icon="
 st.markdown("""
 <style>
 .stApp {background: #f5f7fb; color: #17233b;}
+[data-testid="stHeader"] {background: #10243e; border-bottom: 1px solid #29435f;}
+[data-testid="stHeader"] button,
+[data-testid="stHeader"] button p,
+[data-testid="stHeader"] a {color: #f0f5ff;}
+[data-testid="stHeader"] button svg {fill: currentColor;}
+[data-testid="stHeader"] button:hover {background: #29435f; color: #ffffff;}
+
 .block-container {max-width: 1600px; padding-top: 2rem; padding-bottom: 3rem;}
 [data-testid="stSidebar"] {background: #10243e;}
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
